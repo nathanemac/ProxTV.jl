@@ -1,6 +1,7 @@
 module ProxTV
 
 using OpenBLAS32_jll
+using LinearAlgebra
 # Include wrappers and the main library
 include("libproxtv.jl")
 # include("gen/wrapper.jl")
