@@ -1,5 +1,7 @@
 module ProxTV
 
-# Nothing for now
+# Include wrappers and the main library
+include("libproxtv.jl")
+include("gen/wrapper.jl")
 
 end
