@@ -19,7 +19,7 @@ jobs:
       - name: Set up Julia
         uses: julia-actions/setup-julia@v1
         with:
-          version: '1.9'  # Vous pouvez changer la version de Julia ici
+          version: '1.9'
 
       - name: Run tests
         run: |
