@@ -11,6 +11,7 @@ OpenBLAS32_jll = "656ef2d0-ae68-5445-9ca0-591084a874a2"
 proxTV_jll = "700117f8-5dbb-54dd-9908-6f3eb0e21f87"
 
 [compat]
+JuliaFormatter = "1"
 julia = "1.9"
 
 [extras]
