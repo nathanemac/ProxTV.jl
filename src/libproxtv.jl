@@ -1,3 +1,5 @@
+# This file contains the Julia bindings for the ProxTV library.
+
 using proxTV_jll
 
 function LPnorm(x, n, p)
@@ -109,6 +111,7 @@ function solveLinearLP(z, n, p, lambda, s)
   )::Cvoid
 end
 
+# original TV function
 function TV(y, lambda, x, info, n, p, ws)
   @ccall libproxtv.TV(
     y::Ptr{Float64},
@@ -120,6 +123,51 @@ function TV(y, lambda, x, info, n, p, ws)
     ws::Ptr{Workspace},
   )::Int32
 end
+
+# # overloaded TV function
+# function TV(y, lambda, x, p, ws)
+#   n = length(y) # works for nD signals
+#   info = []
+#   if ws != C_NULL
+#     @warn "Workspace was defined but ignored because of potential memory leak"
+#     ws == C_NULL
+#   end
+#   @ccall libproxtv.TV(
+#     y::Ptr{Float64},
+#     lambda::Float64,
+#     x::Ptr{Float64},
+#     info::Ptr{Float64},
+#     n::Int32,
+#     p::Float64,
+#     ws::Ptr{Workspace},
+#   )::Int32
+# end
+
+# # overloaded TV function
+# function TV(y, lambda, x, p)
+#   @warn "Workspace was not defined. Defining a default workspace : Potential memory leak."
+#   n = length(y) # works for nD signals
+#   info = []
+#   # define a workspace allowing local memory management
+#   ws = newWorkspace(n)
+#   println("Workspace allocated")
+#   try
+#     # Appel de la fonction TV avec le workspace
+#     result = @ccall libproxtv.TV(
+#         y::Ptr{Float64},
+#         lambda::Float64,
+#         x::Ptr{Float64},
+#         info::Ptr{Float64},
+#         n::Int32,
+#         p::Float64,
+#         ws::Ptr{Workspace}  # Passe le workspace alloué
+#     )::Int32
+#   finally
+#     # Libère le workspace une fois l'opération terminée
+#     freeWorkspace(ws)
+#   end
+#   return result
+# end
 
 function PN_TV1(y, lambda, x, info, n, sigma, ws)
   @ccall libproxtv.PN_TV1(
