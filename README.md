@@ -13,7 +13,7 @@
 
 ProxTV.jl is a Julia package that provides a collection of exact and inexact proximal operators. This includes the Total Variation (TV) regularization with any p-norm.
 
-This package is a Julia implementation of the ProxTV package for MATLAB and Python which is available [here](https://github.com/albarji/proxTV).
+This package is a Julia implementation of the ProxTV package for MATLAB and Python which is available [here](https://github.com/albarji/proxTV). Behind those implementations, there is a C++ library that provides the core of the proximal operators.
 
 ## How to Use
 
