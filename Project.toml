@@ -16,7 +16,7 @@ JuliaFormatter = "1"
 LAPACK_jll = "3.12.0"
 OpenBLAS32_jll =  "0.3.21"
 proxTV_jll = "3.3.2"
-LinearAlgebra = "1.11"
+LinearAlgebra = "1"
 
 [extras]
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
