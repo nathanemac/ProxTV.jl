@@ -1,7 +1,6 @@
 # ProxTV
 
 [![Stable Documentation](https://img.shields.io/badge/docs-stable-blue.svg)](https://nathanemac.github.io/ProxTV.jl/stable)
-[![In development documentation](https://img.shields.io/badge/docs-dev-blue.svg)](https://nathanemac.github.io/ProxTV.jl/dev)
 [![Build Status](https://github.com/nathanemac/ProxTV.jl/workflows/Test/badge.svg)](https://github.com/nathanemac/ProxTV.jl/actions)
 [![Test workflow status](https://github.com/nathanemac/ProxTV.jl/actions/workflows/Test.yml/badge.svg?branch=main)](https://github.com/nathanemac/ProxTV.jl/actions/workflows/Test.yml?query=branch%3Amain)
 [![Lint workflow Status](https://github.com/nathanemac/ProxTV.jl/actions/workflows/Lint.yml/badge.svg?branch=main)](https://github.com/nathanemac/ProxTV.jl/actions/workflows/Lint.yml?query=branch%3Amain)
