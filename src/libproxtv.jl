@@ -52,7 +52,27 @@ function PN_LPinf(y, lambda, x, info, n, ws)
   )::Int32
 end
 
+# original PN_LPp function
 function PN_LPp(y, lambda, x, info, n, p, ws, positive, objGap)
+  @ccall libproxtv.PN_LPp(
+    y::Ptr{Float64},
+    lambda::Float64,
+    x::Ptr{Float64},
+    info::Ptr{Float64},
+    n::Int32,
+    p::Float64,
+    ws::Ptr{Workspace},
+    positive::Int32,
+    objGap::Float64,
+  )::Int32
+end
+
+# overloaded PN_LPp function with less inputs
+function PN_LPp(y, lambda, x, p, objGap)
+  n = length(y)                  # works for nD signals
+  info = []                      # stores the information about the execution of the function
+  ws = ProxTV.newWorkspace(n)    # define a workspace for memory management
+  positive = all(x -> x >= 0, y) # 0 if false, 1 if true
   @ccall libproxtv.PN_LPp(
     y::Ptr{Float64},
     lambda::Float64,
@@ -124,50 +144,21 @@ function TV(y, lambda, x, info, n, p, ws)
   )::Int32
 end
 
-# # overloaded TV function
-# function TV(y, lambda, x, p, ws)
-#   n = length(y) # works for nD signals
-#   info = []
-#   if ws != C_NULL
-#     @warn "Workspace was defined but ignored because of potential memory leak"
-#     ws == C_NULL
-#   end
-#   @ccall libproxtv.TV(
-#     y::Ptr{Float64},
-#     lambda::Float64,
-#     x::Ptr{Float64},
-#     info::Ptr{Float64},
-#     n::Int32,
-#     p::Float64,
-#     ws::Ptr{Workspace},
-#   )::Int32
-# end
-
-# # overloaded TV function
-# function TV(y, lambda, x, p)
-#   @warn "Workspace was not defined. Defining a default workspace : Potential memory leak."
-#   n = length(y) # works for nD signals
-#   info = []
-#   # define a workspace allowing local memory management
-#   ws = newWorkspace(n)
-#   println("Workspace allocated")
-#   try
-#     # Appel de la fonction TV avec le workspace
-#     result = @ccall libproxtv.TV(
-#         y::Ptr{Float64},
-#         lambda::Float64,
-#         x::Ptr{Float64},
-#         info::Ptr{Float64},
-#         n::Int32,
-#         p::Float64,
-#         ws::Ptr{Workspace}  # Passe le workspace alloué
-#     )::Int32
-#   finally
-#     # Libère le workspace une fois l'opération terminée
-#     freeWorkspace(ws)
-#   end
-#   return result
-# end
+# overloaded TV function with less inputs
+function TV(y, lambda, x, p)
+  n = length(y)                  # works for nD signals
+  info = []                      # stores the information about the execution of the function
+  ws = ProxTV.newWorkspace(n)    # define a workspace for memory management
+  @ccall libproxtv.TV(
+    y::Ptr{Float64},
+    lambda::Float64,
+    x::Ptr{Float64},
+    info::Ptr{Float64},
+    n::Int32,
+    p::Float64,
+    ws::Ptr{Workspace},
+  )::Int32
+end
 
 function PN_TV1(y, lambda, x, info, n, sigma, ws)
   @ccall libproxtv.PN_TV1(
