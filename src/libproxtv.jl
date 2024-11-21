@@ -132,7 +132,7 @@ function solveLinearLP(z, n, p, lambda, s)
 end
 
 # original TV function
-function TV(y, lambda, x, info, n, p, ws)
+function TV(y, lambda, x, info, n, p, ws; objGap = 1e-5)
   @ccall libproxtv.TV(
     y::Ptr{Float64},
     lambda::Float64,
@@ -141,6 +141,7 @@ function TV(y, lambda, x, info, n, p, ws)
     n::Int32,
     p::Float64,
     ws::Ptr{Workspace},
+    objGap::Float64,
   )::Int32
 end
 
@@ -363,7 +364,7 @@ function FW_TVp(y, lambda, x, info, n, p, ws)
   )::Int32
 end
 
-function GPFW_TVp(y, lambda, x, info, n, p, ws)
+function GPFW_TVp(y, lambda, x, info, n, p, ws; objGap = 1e-5)
   @ccall libproxtv.GPFW_TVp(
     y::Ptr{Float64},
     lambda::Float64,
@@ -372,6 +373,7 @@ function GPFW_TVp(y, lambda, x, info, n, p, ws)
     n::Int32,
     p::Float64,
     ws::Ptr{Workspace},
+    objGap::Float64,
   )::Int32
 end
 
