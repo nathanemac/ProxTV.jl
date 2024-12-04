@@ -53,21 +53,22 @@ function PN_LPinf(y, lambda, x, info, n, ws)
 end
 
 # original PN_LPp function
-function PN_LPp(y, lambda, x, info, n, p, ws, positive, objGap, ctx_ptr)
-  @ccall libproxtv.PN_LPp(
-    y::Ptr{Float64},
-    lambda::Float64,
-    x::Ptr{Float64},
-    info::Ptr{Float64},
-    n::Int32,
-    p::Float64,
-    ws::Ptr{Workspace},
-    positive::Int32,
-    objGap::Float64,
-    ctx_ptr::Ptr{Cvoid},
-    callback::Ptr{Cvoid},
-  )::Int32
+function PN_LPp(y, lambda, x, info, n, p, ws, positive, objGap, ctx, callback)
+    @ccall libproxtv.PN_LPp(
+        y::Ptr{Float64},
+        lambda::Float64,
+        x::Ptr{Float64},
+        info::Ptr{Float64},
+        n::Int32,
+        p::Float64,
+        ws::Ptr{Workspace},
+        positive::Int32,
+        objGap::Float64,
+        Ref(ctx)::Ptr{Cvoid},
+        callback::Ptr{Cvoid},
+    )::Int32
 end
+
 
 # overloaded PN_LPp function with less inputs
 function PN_LPp(y, lambda, x, p, objGap)
@@ -134,7 +135,7 @@ function solveLinearLP(z, n, p, lambda, s)
 end
 
 # original TV function
-function TV(y, lambda, x, info, n, p, ws, ctx_ptr, callback; objGap = 1e-5)
+function TV(y, lambda, x, info, n, p, ws, ctx, callback; objGap = 1e-5)
   @ccall libproxtv.TV(
     y::Ptr{Float64},
     lambda::Float64,
@@ -144,7 +145,7 @@ function TV(y, lambda, x, info, n, p, ws, ctx_ptr, callback; objGap = 1e-5)
     p::Float64,
     ws::Ptr{Workspace},
     objGap::Float64,
-    ctx_ptr::Ptr{Cvoid},
+    Ref(ctx)::Ptr{Cvoid},
     callback::Ptr{Cvoid},
   )::Int32
 end
