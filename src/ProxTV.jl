@@ -3,6 +3,7 @@ module ProxTV
 using OpenBLAS32_jll
 using LAPACK_jll
 using LinearAlgebra
+using ShiftedProximalOperators
 
 function __init__()
   config = LinearAlgebra.BLAS.lbt_get_config()
@@ -13,5 +14,6 @@ end
 
 # main library functions
 include("libproxtv.jl")
+include("proxtv_utils.jl")
 
 end
