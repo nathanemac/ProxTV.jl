@@ -55,8 +55,8 @@ end
 
 # original PN_LPp function
 function PN_LPp(y, lambda, x, info, n, p, ws, positive, ctx, callback)
-    context = unsafe_pointer_to_objref(ctx)::AlgorithmContextCallback
-    objGap = context.dualGap
+    objGap = ctx.dualGap
+    ctx_ptr = Ptr{Cvoid}(pointer_from_objref(ctx))
     @ccall libproxtv.PN_LPp(
         y::Ptr{Float64},
         lambda::Float64,
@@ -67,7 +67,7 @@ function PN_LPp(y, lambda, x, info, n, p, ws, positive, ctx, callback)
         ws::Ptr{Workspace},
         positive::Int32,
         objGap::Float64,
-        Ref(ctx)::Ptr{Cvoid},
+        ctx_ptr::Ptr{Cvoid},
         callback::Ptr{Cvoid},
     )::Int32
 end
@@ -139,8 +139,8 @@ end
 
 # original TV function
 function TV(y, lambda, x, info, n, p, ws, ctx, callback)
-  context = unsafe_pointer_to_objref(ctx)::AlgorithmContextCallback
-  objGap = context.dualGap
+  objGap = ctx.dualGap
+  ctx_ptr = Ptr{Cvoid}(pointer_from_objref(ctx))
   @ccall libproxtv.TV(
     y::Ptr{Float64},
     lambda::Float64,
@@ -150,7 +150,7 @@ function TV(y, lambda, x, info, n, p, ws, ctx, callback)
     p::Float64,
     ws::Ptr{Workspace},
     objGap::Float64,
-    Ref(ctx)::Ptr{Cvoid},
+    ctx_ptr::Ptr{Cvoid},
     callback::Ptr{Cvoid},
   )::Int32
 end
