@@ -12,17 +12,14 @@ function __init__()
   end
 end
 
+export InexactShiftedProximableFunction
+export NormLp, ShiftedNormLp, NormTVp, ShiftedNormTVp
+export prox!, shifted, shift!, TVp_norm
+export fun_name, fun_expr, fun_params
+export AlgorithmContextCallback, julia_callback, callback_pointer
+
 # main library functions
 include("libproxtv.jl")
 include("proxtv_utils.jl")
 
-export InexactShiftedProximableFunction,
-       NormLp, ShiftedNormLp,
-       NormTVp, ShiftedNormTVp,
-       prox!, shifted, shift!,
-       TVp_norm,
-       fun_name, fun_expr, fun_params,
-       AlgorithmContextCallback,
-       julia_callback,
-       callback_pointer
 end
