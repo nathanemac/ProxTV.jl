@@ -38,7 +38,8 @@ Inputs:
     - `q`: Vector to which the proximity operator is applied.
     - `ν`: Scaling factor.
     - `ctx_ptr`: Pointer to the context object.
-    - `callback`: Pointer to the callback function."""
+    - `callback`: Pointer to the callback function.
+"""
 function prox!(
         y::AbstractArray,
         h::NormLp,
@@ -260,7 +261,8 @@ Inputs:
     - `q`: Vector to which the proximity operator is applied.
     - `ν`: Scaling factor.
     - `ctx_ptr`: Pointer to the context object.
-    - `callback`: Pointer to the callback function."""
+    - `callback`: Pointer to the callback function.
+"""
 function prox!(
         y::AbstractArray,
         h::NormTVp,
@@ -275,7 +277,7 @@ function prox!(
     # Allocate info array (based on C++ code)
     info = zeros(Float64, 3)
 
-    # Adjust lambda to account for ν (multiply λ by ν)
+    # Adjust λ by ν
     lambda_scaled = h.λ * ν
 
     TV(q, lambda_scaled, y, info, n, h.p, ws, ctx_ptr, callback)
@@ -392,7 +394,7 @@ function prox!(y::AbstractArray, ψ::ShiftedNormTVp, q::AbstractArray, ν::Real,
     # Compute y_shifted = xk + sj + q
     y_shifted = ψ.xk .+ ψ.sj .+ q
 
-    # Adjust lambda to account for σ (multiply λ by σ)
+    # Adjust lambda to account for ν (multiply λ by ν)
     lambda_scaled = ψ.h.λ * ν
 
     # Allocate the x vector to store the intermediate solution
@@ -418,8 +420,8 @@ end
     shifted(h::Union{NormLp, NormTVp}, xk::AbstractVector)
 
 Creates a shifted version of `h` depending on its type.
-If `h` is of type `NormLp`, it returns a `ShiftedNormLp`.
-If `h` is of type `NormTVp`, it returns a `ShiftedNormTVp`.
+If `h` is of type `NormLp`, returns a `ShiftedNormLp`.
+If `h` is of type `NormTVp`, returns a `ShiftedNormTVp`.
 """
 function shifted(h::Union{NormLp, NormTVp}, xk::AbstractVector)
     if h isa NormLp
@@ -455,7 +457,6 @@ Errors:
 function prox!(y, ψ::Union{InexactShiftedProximableFunction, ShiftedProximableFunction
   }, q, ν; ctx_ptr, callback)
     if ψ isa ShiftedProximableFunction
-
         # Call to exact prox!() if dualGap is not defined
         return prox!(y, ψ, q, ν)
     elseif ψ isa InexactShiftedProximableFunction
@@ -497,20 +498,3 @@ function julia_callback(s_ptr::Ptr{Cdouble}, s_length::Csize_t, delta_k::Cdouble
 end
 
 callback_pointer = @cfunction(julia_callback, Cint, (Ptr{Cdouble}, Csize_t, Cdouble, Ptr{Cvoid}))
-
-
-
-
-
-###### OUTDATED CODE ######
-# Outdated function
-# function check_condition_xi!(s, ψ::Union{InexactShiftedProximableFunction, ShiftedProximalOperators.ShiftedProximableFunction
-#   }, q, ν, κξ, ξ, mk, hk, k, dualGap)
-#     while dualGap > (1-κξ) / κξ * ξ
-#         # @info " -> iR2N: dualGap condition not satisfied, recomputing prox at iteration $k."
-#         dualGap = (1-κξ) / κξ * ξ
-#         prox!(s, ψ, q, ν; dualGap=dualGap)
-#         ξ = hk - mk(s) + max(1, abs(hk)) * 10 * eps()
-#     end
-#     return s, dualGap, ξ
-# end
