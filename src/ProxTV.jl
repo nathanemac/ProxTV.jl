@@ -16,5 +16,13 @@ end
 include("libproxtv.jl")
 include("proxtv_utils.jl")
 
-
+export InexactShiftedProximableFunction,
+       NormLp, ShiftedNormLp,
+       NormTVp, ShiftedNormTVp,
+       prox!, shifted, shift!,
+       TVp_norm,
+       fun_name, fun_expr, fun_params,
+       AlgorithmContextCallback,
+       julia_callback,
+       callback_pointer
 end
