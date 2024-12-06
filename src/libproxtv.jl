@@ -54,7 +54,9 @@ function PN_LPinf(y, lambda, x, info, n, ws)
 end
 
 # original PN_LPp function
-function PN_LPp(y, lambda, x, info, n, p, ws, positive, objGap, ctx, callback)
+function PN_LPp(y, lambda, x, info, n, p, ws, positive, ctx, callback)
+    context = unsafe_pointer_to_objref(ctx)::AlgorithmContextCallback
+    objGap = context.dualGap
     @ccall libproxtv.PN_LPp(
         y::Ptr{Float64},
         lambda::Float64,
@@ -136,7 +138,9 @@ function solveLinearLP(z, n, p, lambda, s)
 end
 
 # original TV function
-function TV(y, lambda, x, info, n, p, ws, ctx, callback; objGap = 1e-5)
+function TV(y, lambda, x, info, n, p, ws, ctx, callback)
+  context = unsafe_pointer_to_objref(ctx)::AlgorithmContextCallback
+  objGap = context.dualGap
   @ccall libproxtv.TV(
     y::Ptr{Float64},
     lambda::Float64,
