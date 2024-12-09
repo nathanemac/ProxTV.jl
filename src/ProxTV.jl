@@ -12,9 +12,20 @@ function __init__()
   end
 end
 
+# import functions that we extend from ShiftedProximalOperators
+import ShiftedProximalOperators.shift!
+import ShiftedProximalOperators.shifted
+import ShiftedProximalOperators.prox!
+
+# export our new functions
+export AlgorithmContextCallback
+export InexactShiftedProximableFunction
+export NormLp, ShiftedNormLp, NormTVp, ShiftedNormTVp
+export prox!, shifted, shift!, TVp_norm
+export fun_name, fun_expr, fun_params
+
 # main library functions
 include("libproxtv.jl")
 include("proxtv_utils.jl")
-
 
 end
