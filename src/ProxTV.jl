@@ -12,6 +12,12 @@ function __init__()
   end
 end
 
+# import functions that we extend from ShiftedProximalOperators
+import ShiftedProximalOperators.shift!
+import ShiftedProximalOperators.shifted
+import ShiftedProximalOperators.prox!
+
+# export our new functions
 export AlgorithmContextCallback
 export InexactShiftedProximableFunction
 export NormLp, ShiftedNormLp, NormTVp, ShiftedNormTVp

@@ -31,10 +31,9 @@ end
 
 
   ctx = AlgorithmContextCallback(dualGap=dualGap)
-  ctx_ptr = Ptr{Cvoid}(pointer_from_objref(ctx))
 
   callback_pointer = @cfunction(simple_callback, Cint, (Ptr{Cdouble}, Csize_t, Cdouble, Ptr{Cvoid}))
-  @test PN_LPp(y, lambda, x, info, n, p, ws, positive, ctx_ptr, callback_pointer) == 1 # 1 is the expected return value of the function. This means that the function has been executed successfully.
+  @test PN_LPp(y, lambda, x, info, n, p, ws, positive, ctx, callback_pointer) == 1 # 1 is the expected return value of the function. This means that the function has been executed successfully.
 
-  @test TV(y, lambda, x, info, n, p, ws, ctx_ptr, callback_pointer)== 1
+  @test TV(y, lambda, x, info, n, p, ws, ctx, callback_pointer) == 1
 end
