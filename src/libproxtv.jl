@@ -72,7 +72,6 @@ function PN_LPp(y, lambda, x, info, n, p, ws, positive, ctx, callback)
     )::Int32
 end
 
-
 # overloaded PN_LPp function with less inputs
 function PN_LPp(y, lambda, x, p, objGap)
   n = length(y)                  # works for nD signals

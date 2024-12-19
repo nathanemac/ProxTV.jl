@@ -9,9 +9,10 @@ mutable struct AlgorithmContextCallback
   shift::AbstractVector{Float64}
   s_k_unshifted::Vector{Float64}
   dualGap::Float64
+  prox_stats # for total number of iterations in ir2n, ir2 and prox.
 end
-function AlgorithmContextCallback(;hk=0.0, mk = x -> x, κξ = 0.0, shift = zeros(0), s_k_unshifted = zeros(0), dualGap = 0.0)
-  AlgorithmContextCallback(hk, mk, κξ, shift, s_k_unshifted, dualGap)
+function AlgorithmContextCallback(;hk=0.0, mk = x -> x, κξ = 0.0, shift = zeros(0), s_k_unshifted = zeros(0), dualGap = 0.0, prox_stats = [0.0, [], []])
+  AlgorithmContextCallback(hk, mk, κξ, shift, s_k_unshifted, dualGap, prox_stats)
 end
 
 
@@ -78,6 +79,9 @@ function prox!(
     PN_LPp(q, lambda_scaled, y, info, n, h.p, ws, positive, context, callback)
 
     freeWorkspace(ws)
+
+    # add the number of iterations in prox to the context object
+    push!(context.prox_stats[3], info[1])
 
     return y
 end
@@ -222,6 +226,9 @@ function prox!(
 
     freeWorkspace(ws)
 
+    # add the number of iterations in prox to the context object
+    push!(context.prox_stats[3], info[1])
+
     return y
 end
 
@@ -301,6 +308,9 @@ function prox!(
     TV(q, lambda_scaled, y, info, n, h.p, ws, context, callback)
 
     freeWorkspace(ws)
+
+    # add the number of iterations in prox to the context object
+    push!(context.prox_stats[3], info[1])
 
     return y
 end
@@ -431,6 +441,9 @@ function prox!(y::AbstractArray, ψ::ShiftedNormTVp, q::AbstractArray, ν::Real,
 
     freeWorkspace(ws)
 
+    # add the number of iterations in prox to the context object
+    push!(context.prox_stats[3], info[1])
+
     return y
 end
 
@@ -483,7 +496,6 @@ function prox!(y, ψ::Union{InexactShiftedProximableFunction, ShiftedProximableF
         return prox!(y, ψ, q, ν)
     elseif ψ isa InexactShiftedProximableFunction
         # Call to inexact prox!()
-        println("Inexact prox!() called")
         return prox!(y, ψ, q, ν, ctx_ptr, callback)
 
     else
