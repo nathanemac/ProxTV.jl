@@ -10,9 +10,11 @@ mutable struct AlgorithmContextCallback
   s_k_unshifted::Vector{Float64}
   dualGap::Float64
   prox_stats # for total number of iterations in ir2n, ir2 and prox.
+  flag_projLp::Int
+  iters_prox_projLp::Int
 end
-function AlgorithmContextCallback(;hk=0.0, mk = x -> x, κξ = 0.0, shift = zeros(0), s_k_unshifted = zeros(0), dualGap = 0.0, prox_stats = [0.0, [], []])
-  AlgorithmContextCallback(hk, mk, κξ, shift, s_k_unshifted, dualGap, prox_stats)
+function AlgorithmContextCallback(;hk=0.0, mk = x -> x, κξ = 0.0, shift = zeros(0), s_k_unshifted = zeros(0), dualGap = 0.0, prox_stats = [0.0, [], []], flag_projLp = 0, iters_prox_projLp = 1)
+  AlgorithmContextCallback(hk, mk, κξ, shift, s_k_unshifted, dualGap, prox_stats, flag_projLp, iters_prox_projLp)
 end
 
 
