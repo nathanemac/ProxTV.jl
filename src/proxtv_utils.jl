@@ -5,6 +5,7 @@ abstract type InexactShiftedProximableFunction end
 mutable struct AlgorithmContextCallback
   hk::Float64
   mk::Function
+  mk1::Function
   κξ::Float64
   shift::AbstractVector{Float64}
   s_k_unshifted::Vector{Float64}
@@ -13,8 +14,8 @@ mutable struct AlgorithmContextCallback
   flag_projLp::Int
   iters_prox_projLp::Int
 end
-function AlgorithmContextCallback(;hk=0.0, mk = x -> x, κξ = 0.0, shift = zeros(0), s_k_unshifted = zeros(0), dualGap = 0.0, prox_stats = [0.0, [], []], flag_projLp = 0, iters_prox_projLp = 1)
-  AlgorithmContextCallback(hk, mk, κξ, shift, s_k_unshifted, dualGap, prox_stats, flag_projLp, iters_prox_projLp)
+function AlgorithmContextCallback(;hk=0.0, mk = x -> x, mk1 = x -> x, κξ = 0.0, shift = zeros(0), s_k_unshifted = zeros(0), dualGap = 0.0, prox_stats = [0.0, [], []], flag_projLp = 0, iters_prox_projLp = 1)
+  AlgorithmContextCallback(hk, mk, mk1, κξ, shift, s_k_unshifted, dualGap, prox_stats, flag_projLp, iters_prox_projLp)
 end
 
 
@@ -492,7 +493,7 @@ Errors:
     - Raises an error if `ψ` is of type `ShiftedProximableFunction` and pointers are provided, or if `ψ` is of type `InexactShiftedProximableFunction` and pointers are not provided.
 """
 function prox!(y, ψ::Union{InexactShiftedProximableFunction, ShiftedProximableFunction
-  }, q, ν; ctx_ptr, callback)
+  }, q, ν, ctx_ptr, callback)
     if ψ isa ShiftedProximableFunction
         # Call to exact prox!()
         return prox!(y, ψ, q, ν)
