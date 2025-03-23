@@ -1,21 +1,59 @@
 abstract type InexactShiftedProximableFunction end
 
+# This is a helper struct to store the gradient and the proximal term in a compact way.
+# It is used to avoid memory allocations when calling the proximal callback.
+mutable struct ModelFunction{V,P}
+  ∇f::V  # gradient
+  ψ::P   # proximal term
+end
 
-## Structure for callback function in iR2N
+# define function that creates the structure ModelFunction
+function ModelFunction(∇f::V, ψ::Function) where {V<:AbstractVector}
+  return ModelFunction{V,Function}(∇f, ψ)
+end
+
+function (m::ModelFunction)(d)
+  return dot(m.∇f, d) + m.ψ(d)
+end
+
+## Structure for callback function in iR2/iR2N
 mutable struct AlgorithmContextCallback
   hk::Float64
-  mk::Function
+  mk::ModelFunction
   mk1::Function
   κξ::Float64
   shift::AbstractVector{Float64}
   s_k_unshifted::Vector{Float64}
   dualGap::Float64
-  prox_stats # for total number of iterations in ir2n, ir2 and prox.
+  prox_stats::Any # for total number of iterations in ir2n, ir2 and prox.
   flag_projLp::Int
   iters_prox_projLp::Int
 end
-function AlgorithmContextCallback(;hk=0.0, mk = x -> x, mk1 = x -> x, κξ = 0.0, shift = zeros(0), s_k_unshifted = zeros(0), dualGap = 0.0, prox_stats = [0.0, [], []], flag_projLp = 0, iters_prox_projLp = 1)
-  AlgorithmContextCallback(hk, mk, mk1, κξ, shift, s_k_unshifted, dualGap, prox_stats, flag_projLp, iters_prox_projLp)
+
+function AlgorithmContextCallback(;
+  hk = 0.0,
+  mk = ModelFunction(zeros(0), x -> x),
+  mk1 = x -> x,
+  κξ = 3 / 4,
+  shift = zeros(0),
+  s_k_unshifted = zeros(0),
+  dualGap = 0.0,
+  prox_stats = [0.0, [], []],
+  flag_projLp = 0,
+  iters_prox_projLp = 100,
+)
+  AlgorithmContextCallback(
+    hk,
+    mk,
+    mk1,
+    κξ,
+    shift,
+    s_k_unshifted,
+    dualGap,
+    prox_stats,
+    flag_projLp,
+    iters_prox_projLp,
+  )
 end
 
 
@@ -27,22 +65,22 @@ end
 Represents the Lp norm with parameter `p` and scaling factor `λ`.
 """
 struct NormLp{T1,T2}
-    λ::T1
-    p::T2
+  λ::T1
+  p::T2
 
-    function NormLp(λ::T1, p::T2) where {T1,T2}
-        if λ isa Real
-            λ < 0 && error("λ must be nonnegative")
-        elseif λ isa AbstractArray
-            eltype(λ) <: Real || error("Elements of λ must be real")
-            any(λ .< 0) && error("All elements of λ must be nonnegative")
-        else
-            error("λ must be a real scalar or array")
-        end
-
-        p >= 1 || error("p must be greater than or equal to one")
-        new{T1,T2}(λ, p)
+  function NormLp(λ::T1, p::T2) where {T1,T2}
+    if λ isa Real
+      λ < 0 && error("λ must be nonnegative")
+    elseif λ isa AbstractArray
+      eltype(λ) <: Real || error("Elements of λ must be real")
+      any(λ .< 0) && error("All elements of λ must be nonnegative")
+    else
+      error("λ must be a real scalar or array")
     end
+
+    p >= 1 || error("p must be greater than or equal to one")
+    new{T1,T2}(λ, p)
+  end
 end
 
 """
@@ -60,38 +98,38 @@ Inputs:
     - `callback`: Pointer to the callback function.
 """
 function prox!(
-        y::AbstractArray,
-        h::NormLp,
-        q::AbstractArray,
-        ν::Real,
-        context::AlgorithmContextCallback,
-        callback::Ptr{Cvoid};
+  y::AbstractArray,
+  h::NormLp,
+  q::AbstractArray,
+  ν::Real,
+  context::AlgorithmContextCallback,
+  callback::Ptr{Cvoid};
 )
 
-    n = length(y)
-    ws = newWorkspace(n)
+  n = length(y)
+  ws = newWorkspace(n)
 
-    # Allocate info array (based on C++ code)
-    info = zeros(Float64, 3)
+  # Allocate info array (based on C++ code)
+  info = zeros(Float64, 3)
 
-    # Adjust lambda to account for ν (multiply λ by ν)
-    lambda_scaled = h.λ * ν
+  # Adjust lambda to account for ν (multiply λ by ν)
+  lambda_scaled = h.λ * ν
 
-    positive = Int32(all(v -> v >= 0, y) ? 1 : 0)
+  positive = Int32(all(v -> v >= 0, y) ? 1 : 0)
 
-    PN_LPp(q, lambda_scaled, y, info, n, h.p, ws, positive, context, callback)
+  PN_LPp(q, lambda_scaled, y, info, n, h.p, ws, positive, context, callback)
 
-    freeWorkspace(ws)
+  freeWorkspace(ws)
 
-    # add the number of iterations in prox to the context object
-    push!(context.prox_stats[3], info[1])
+  # add the number of iterations in prox to the context object
+  push!(context.prox_stats[3], info[1])
 
-    return y
+  return y
 end
 
 # Allows NormLp objects to be called as functions
 function (h::NormLp)(x::AbstractArray)
-    return h.λ * LPnorm(x, length(x), h.p)
+  return h.λ * LPnorm(x, length(x), h.p)
 end
 
 """
@@ -100,29 +138,29 @@ end
 A mutable struct representing a shifted NormLp function.
 """
 mutable struct ShiftedNormLp{
-    R<:Real,
-    T<:Real,
-    V0<:AbstractVector{R},
-    V1<:AbstractVector{R},
-    V2<:AbstractVector{R},
+  R<:Real,
+  T<:Real,
+  V0<:AbstractVector{R},
+  V1<:AbstractVector{R},
+  V2<:AbstractVector{R},
 } <: InexactShiftedProximableFunction
-    h::NormLp{R,T}
-    xk::V0
-    sj::V1
-    sol::V2
-    shifted_twice::Bool
-    xsy::V2
+  h::NormLp{R,T}
+  xk::V0
+  sj::V1
+  sol::V2
+  shifted_twice::Bool
+  xsy::V2
 
-    function ShiftedNormLp(
-        h::NormLp{R,T},
-        xk::AbstractVector{R},
-        sj::AbstractVector{R},
-        shifted_twice::Bool,
-    ) where {R<:Real,T<:Real}
-        sol = similar(xk)
-        xsy = similar(xk)
-        new{R,T,typeof(xk),typeof(sj),typeof(sol)}(h, xk, sj, sol, shifted_twice, xsy)
-    end
+  function ShiftedNormLp(
+    h::NormLp{R,T},
+    xk::AbstractVector{R},
+    sj::AbstractVector{R},
+    shifted_twice::Bool,
+  ) where {R<:Real,T<:Real}
+    sol = similar(xk)
+    xsy = similar(xk)
+    new{R,T,typeof(xk),typeof(sj),typeof(sol)}(h, xk, sj, sol, shifted_twice, xsy)
+  end
 end
 
 """
@@ -131,7 +169,7 @@ end
 Creates a ShiftedNormLp object with initial shift `xk`.
 """
 shifted(h::NormLp{R,T}, xk::AbstractVector{R}) where {R<:Real,T<:Real} =
-    ShiftedNormLp(h, xk, zero(xk), false)
+  ShiftedNormLp(h, xk, zero(xk), false)
 
 """
     shifted(ψ::ShiftedNormLp, sj::AbstractVector)
@@ -139,14 +177,14 @@ shifted(h::NormLp{R,T}, xk::AbstractVector{R}) where {R<:Real,T<:Real} =
 Creates a ShiftedNormLp object by adding a second shift `sj`.
 """
 shifted(
-    ψ::ShiftedNormLp{R,T,V0,V1,V2},
-    sj::AbstractVector{R},
+  ψ::ShiftedNormLp{R,T,V0,V1,V2},
+  sj::AbstractVector{R},
 ) where {
-    R<:Real,
-    T<:Real,
-    V0<:AbstractVector{R},
-    V1<:AbstractVector{R},
-    V2<:AbstractVector{R},
+  R<:Real,
+  T<:Real,
+  V0<:AbstractVector{R},
+  V1<:AbstractVector{R},
+  V2<:AbstractVector{R},
 } = ShiftedNormLp(ψ.h, ψ.xk, sj, true)
 
 # Functions to get the name, expression, and parameters of the function
@@ -160,18 +198,18 @@ fun_params(ψ::ShiftedNormLp) = "xk = $(ψ.xk)\n" * " "^14 * "sj = $(ψ.sj)"
 Updates the shift of a ShiftedNormLp object.
 """
 function shift!(ψ::ShiftedNormLp, shift::AbstractVector{R}) where {R<:Real}
-    if ψ.shifted_twice
-        ψ.sj .= shift
-    else
-        ψ.xk .= shift
-    end
-    return ψ
+  if ψ.shifted_twice
+    ψ.sj .= shift
+  else
+    ψ.xk .= shift
+  end
+  return ψ
 end
 
 # Allows ShiftedNormLp objects to be called as functions
 function (ψ::ShiftedNormLp)(y::AbstractVector)
-    @. ψ.xsy = ψ.xk + ψ.sj + y
-    return ψ.h(ψ.xsy)
+  @. ψ.xsy = ψ.xk + ψ.sj + y
+  return ψ.h(ψ.xsy)
 end
 
 """
@@ -189,50 +227,50 @@ Inputs:
     - `callback`: Pointer to the callback function.
 """
 function prox!(
-    y::AbstractArray,
-    ψ::ShiftedNormLp,
-    q::AbstractArray,
-    ν::Real,
-    context::AlgorithmContextCallback,
-    callback::Ptr{Cvoid};
+  y::AbstractArray,
+  ψ::ShiftedNormLp,
+  q::AbstractArray,
+  ν::Real,
+  context::AlgorithmContextCallback,
+  callback::Ptr{Cvoid};
 )
-    n = length(y)
-    ws = newWorkspace(n) # to avoid unexplained memory leaks
+  n = length(y)
+  ws = newWorkspace(n) # to avoid unexplained memory leaks
 
-    # Allocate info array (based on C++ code)
-    info = zeros(Float64, 3)
+  # Allocate info array (based on C++ code)
+  info = zeros(Float64, 3)
 
-    # Compute y_shifted = xk + sj + q
-    y_shifted = ψ.xk .+ ψ.sj .+ q
+  # Compute y_shifted = xk + sj + q
+  y_shifted = ψ.xk .+ ψ.sj .+ q
 
-    # Adjust lambda to account for ν (multiply λ by ν)
-    lambda_scaled = ψ.h.λ * ν
+  # Adjust lambda to account for ν (multiply λ by ν)
+  lambda_scaled = ψ.h.λ * ν
 
-    # Allocate the x vector to store the intermediate solution
-    x = zeros(n)
+  # Allocate the x vector to store the intermediate solution
+  x = zeros(n)
 
-    positive = Int32(all(v -> v >= 0, y_shifted) ? 1 : 0)
-    if ψ.h.p == 1
-        PN_LP1(y_shifted, lambda_scaled, x, info, n)
-    elseif ψ.h.p == 2
-        PN_LP2(y_shifted, lambda_scaled, x, info, n)
-    elseif ψ.h.p == Inf
-        PN_LPi(y_shifted, lambda_scaled, x, info, n, ws)
-    else
-        PN_LPp(y_shifted, lambda_scaled, x, info, n, ψ.h.p, ws, positive, context, callback)
-    end
-    # Compute s = x - xk - sj
-    s = x .- ψ.xk .- ψ.sj
+  positive = Int32(all(v -> v >= 0, y_shifted) ? 1 : 0)
+  if ψ.h.p == 1
+    PN_LP1(y_shifted, lambda_scaled, x, info, n)
+  elseif ψ.h.p == 2
+    PN_LP2(y_shifted, lambda_scaled, x, info, n)
+  elseif ψ.h.p == Inf
+    PN_LPi(y_shifted, lambda_scaled, x, info, n, ws)
+  else
+    PN_LPp(y_shifted, lambda_scaled, x, info, n, ψ.h.p, ws, positive, context, callback)
+  end
+  # Compute s = x - xk - sj
+  s = x .- ψ.xk .- ψ.sj
 
-    # Store the result in y
-    y .= s
+  # Store the result in y
+  y .= s
 
-    freeWorkspace(ws)
+  freeWorkspace(ws)
 
-    # add the number of iterations in prox to the context object
-    push!(context.prox_stats[3], info[1])
+  # add the number of iterations in prox to the context object
+  push!(context.prox_stats[3], info[1])
 
-    return y
+  return y
 end
 
 
@@ -245,22 +283,22 @@ end
 Represents the Total Variation (TV) norm with parameter `p` and scaling factor `λ`.
 """
 struct NormTVp{T1,T2}
-    λ::T1
-    p::T2
+  λ::T1
+  p::T2
 
-    function NormTVp(λ::T1, p::T2) where {T1,T2}
-        if λ isa Real
-            λ < 0 && error("λ must be nonnegative")
-        elseif λ isa AbstractArray
-            eltype(λ) <: Real || error("Elements of λ must be real")
-            any(λ .< 0) && error("All elements of λ must be nonnegative")
-        else
-            error("λ must be a real scalar or array")
-        end
-
-        p >= 1 || error("p must be greater than or equal to one")
-        new{T1,T2}(λ, p)
+  function NormTVp(λ::T1, p::T2) where {T1,T2}
+    if λ isa Real
+      λ < 0 && error("λ must be nonnegative")
+    elseif λ isa AbstractArray
+      eltype(λ) <: Real || error("Elements of λ must be real")
+      any(λ .< 0) && error("All elements of λ must be nonnegative")
+    else
+      error("λ must be a real scalar or array")
     end
+
+    p >= 1 || error("p must be greater than or equal to one")
+    new{T1,T2}(λ, p)
+  end
 end
 
 """
@@ -269,12 +307,12 @@ end
 Computes the TVp norm of vector `x` with parameter `p`.
 """
 function TVp_norm(x::AbstractArray, p::Real)
-    n = length(x)
-    tvp_sum = 0.0
-    for i = 1:(n-1)
-        tvp_sum += abs(x[i+1] - x[i])^p
-    end
-    return tvp_sum^(1 / p)
+  n = length(x)
+  tvp_sum = 0.0
+  for i = 1:(n-1)
+    tvp_sum += abs(x[i+1] - x[i])^p
+  end
+  return tvp_sum^(1 / p)
 end
 
 """
@@ -292,35 +330,36 @@ Inputs:
     - `callback`: Pointer to the callback function.
 """
 function prox!(
-        y::AbstractArray,
-        h::NormTVp,
-        q::AbstractArray,
-        ν::Real,
-        context::AlgorithmContextCallback,
-        callback::Ptr{Cvoid})
+  y::AbstractArray,
+  h::NormTVp,
+  q::AbstractArray,
+  ν::Real,
+  context::AlgorithmContextCallback,
+  callback::Ptr{Cvoid},
+)
 
-    n = length(y)
-    ws = newWorkspace(n)
+  n = length(y)
+  ws = newWorkspace(n)
 
-    # Allocate info array (based on C++ code)
-    info = zeros(Float64, 3)
+  # Allocate info array (based on C++ code)
+  info = zeros(Float64, 3)
 
-    # Adjust λ by ν
-    lambda_scaled = h.λ * ν
+  # Adjust λ by ν
+  lambda_scaled = h.λ * ν
 
-    TV(q, lambda_scaled, y, info, n, h.p, ws, context, callback)
+  TV(q, lambda_scaled, y, info, n, h.p, ws, context, callback)
 
-    freeWorkspace(ws)
+  freeWorkspace(ws)
 
-    # add the number of iterations in prox to the context object
-    push!(context.prox_stats[3], info[1])
+  # add the number of iterations in prox to the context object
+  push!(context.prox_stats[3], info[1])
 
-    return y
+  return y
 end
 
 # Allows NormTVp objects to be called as functions
 function (h::NormTVp)(x::AbstractArray)
-    return h.λ * TVp_norm(x, h.p)
+  return h.λ * TVp_norm(x, h.p)
 end
 
 """
@@ -329,29 +368,29 @@ end
 A mutable struct representing a shifted NormTVp function.
 """
 mutable struct ShiftedNormTVp{
-    R<:Real,
-    T<:Real,
-    V0<:AbstractVector{R},
-    V1<:AbstractVector{R},
-    V2<:AbstractVector{R},
+  R<:Real,
+  T<:Real,
+  V0<:AbstractVector{R},
+  V1<:AbstractVector{R},
+  V2<:AbstractVector{R},
 } <: InexactShiftedProximableFunction
-    h::NormTVp{R,T}
-    xk::V0
-    sj::V1
-    sol::V2
-    shifted_twice::Bool
-    xsy::V2
+  h::NormTVp{R,T}
+  xk::V0
+  sj::V1
+  sol::V2
+  shifted_twice::Bool
+  xsy::V2
 
-    function ShiftedNormTVp(
-        h::NormTVp{R,T},
-        xk::AbstractVector{R},
-        sj::AbstractVector{R},
-        shifted_twice::Bool,
-    ) where {R<:Real,T<:Real}
-        sol = similar(xk)
-        xsy = similar(xk)
-        new{R,T,typeof(xk),typeof(sj),typeof(sol)}(h, xk, sj, sol, shifted_twice, xsy)
-    end
+  function ShiftedNormTVp(
+    h::NormTVp{R,T},
+    xk::AbstractVector{R},
+    sj::AbstractVector{R},
+    shifted_twice::Bool,
+  ) where {R<:Real,T<:Real}
+    sol = similar(xk)
+    xsy = similar(xk)
+    new{R,T,typeof(xk),typeof(sj),typeof(sol)}(h, xk, sj, sol, shifted_twice, xsy)
+  end
 end
 
 """
@@ -360,7 +399,7 @@ end
 Creates a ShiftedNormTVp object with initial shift `xk`.
 """
 shifted(h::NormTVp{R,T}, xk::AbstractVector{R}) where {R<:Real,T<:Real} =
-    ShiftedNormTVp(h, xk, zero(xk), false)
+  ShiftedNormTVp(h, xk, zero(xk), false)
 
 """
     shifted(ψ::ShiftedNormTVp, sj::AbstractVector)
@@ -368,14 +407,14 @@ shifted(h::NormTVp{R,T}, xk::AbstractVector{R}) where {R<:Real,T<:Real} =
 Creates a ShiftedNormTVp object by adding a second shift `sj`.
 """
 shifted(
-    ψ::ShiftedNormTVp{R,T,V0,V1,V2},
-    sj::AbstractVector{R},
+  ψ::ShiftedNormTVp{R,T,V0,V1,V2},
+  sj::AbstractVector{R},
 ) where {
-    R<:Real,
-    T<:Real,
-    V0<:AbstractVector{R},
-    V1<:AbstractVector{R},
-    V2<:AbstractVector{R},
+  R<:Real,
+  T<:Real,
+  V0<:AbstractVector{R},
+  V1<:AbstractVector{R},
+  V2<:AbstractVector{R},
 } = ShiftedNormTVp(ψ.h, ψ.xk, sj, true)
 
 # Functions to get the name, expression, and parameters of the function
@@ -389,18 +428,18 @@ fun_params(ψ::ShiftedNormTVp) = "xk = $(ψ.xk)\n" * " "^14 * "sj = $(ψ.sj)"
 Updates the shift of a ShiftedNormTVp object.
 """
 function shift!(ψ::ShiftedNormTVp, shift::AbstractVector{R}) where {R<:Real}
-    if ψ.shifted_twice
-        ψ.sj .= shift
-    else
-        ψ.xk .= shift
-    end
-    return ψ
+  if ψ.shifted_twice
+    ψ.sj .= shift
+  else
+    ψ.xk .= shift
+  end
+  return ψ
 end
 
 # Allows ShiftedNormTVp objects to be called as functions
 function (ψ::ShiftedNormTVp)(y::AbstractVector)
-    @. ψ.xsy = ψ.xk + ψ.sj + y
-    return ψ.h(ψ.xsy)
+  @. ψ.xsy = ψ.xk + ψ.sj + y
+  return ψ.h(ψ.xsy)
 end
 
 """
@@ -417,37 +456,44 @@ Inputs:
     - `ctx_ptr`: Pointer to the context object.
     - `callback`: Pointer to the callback function.
 """
-function prox!(y::AbstractArray, ψ::ShiftedNormTVp, q::AbstractArray, ν::Real, context::AlgorithmContextCallback, callback::Ptr{Cvoid})
-    n = length(y)
-    ws = newWorkspace(n)
+function prox!(
+  y::AbstractArray,
+  ψ::ShiftedNormTVp,
+  q::AbstractArray,
+  ν::Real,
+  context::AlgorithmContextCallback,
+  callback::Ptr{Cvoid},
+)
+  n = length(y)
+  ws = newWorkspace(n)
 
-    # Allocate info array (based on C++ code)
-    info = zeros(Float64, 3)
+  # Allocate info array (based on C++ code)
+  info = zeros(Float64, 3)
 
-    # Compute y_shifted = xk + sj + q
-    y_shifted = ψ.xk .+ ψ.sj .+ q
+  # Compute y_shifted = xk + sj + q
+  y_shifted = ψ.xk .+ ψ.sj .+ q
 
-    # Adjust lambda to account for ν (multiply λ by ν)
-    lambda_scaled = ψ.h.λ * ν
+  # Adjust lambda to account for ν (multiply λ by ν)
+  lambda_scaled = ψ.h.λ * ν
 
-    # Allocate the x vector to store the intermediate solution
-    x = similar(y)
+  # Allocate the x vector to store the intermediate solution
+  x = similar(y)
 
-    # Call the TV function from ProxTV package
-    TV(y_shifted, lambda_scaled, x, info, n, ψ.h.p, ws, context, callback)
+  # Call the TV function from ProxTV package
+  TV(y_shifted, lambda_scaled, x, info, n, ψ.h.p, ws, context, callback)
 
-    # Compute s = x - xk - sj
-    s = x .- ψ.xk .- ψ.sj
+  # Compute s = x - xk - sj
+  s = x .- ψ.xk .- ψ.sj
 
-    # Store the result in y
-    y .= s
+  # Store the result in y
+  y .= s
 
-    freeWorkspace(ws)
+  freeWorkspace(ws)
 
-    # add the number of iterations in prox to the context object
-    push!(context.prox_stats[3], info[1])
+  # add the number of iterations in prox to the context object
+  push!(context.prox_stats[3], info[1])
 
-    return y
+  return y
 end
 
 
@@ -461,14 +507,14 @@ Creates a shifted version of `h` depending on its type.
 If `h` is of type `NormLp`, returns a `ShiftedNormLp`.
 If `h` is of type `NormTVp`, returns a `ShiftedNormTVp`.
 """
-function shifted(h::Union{NormLp, NormTVp}, xk::AbstractVector)
-    if h isa NormLp
-        return ShiftedNormLp(h, xk, zero(xk), false)
-    elseif h isa NormTVp
-        return ShiftedNormTVp(h, xk, zero(xk), false)
-    else
-        throw(ArgumentError("The function h must be either NormLp or NormTVp"))
-    end
+function shifted(h::Union{NormLp,NormTVp}, xk::AbstractVector)
+  if h isa NormLp
+    return ShiftedNormLp(h, xk, zero(xk), false)
+  elseif h isa NormTVp
+    return ShiftedNormTVp(h, xk, zero(xk), false)
+  else
+    throw(ArgumentError("The function h must be either NormLp or NormTVp"))
+  end
 end
 
 """
@@ -492,17 +538,25 @@ Outputs:
 Errors:
     - Raises an error if `ψ` is of type `ShiftedProximableFunction` and pointers are provided, or if `ψ` is of type `InexactShiftedProximableFunction` and pointers are not provided.
 """
-function prox!(y, ψ::Union{InexactShiftedProximableFunction, ShiftedProximableFunction
-  }, q, ν, ctx_ptr, callback)
-    if ψ isa ShiftedProximableFunction
-        # Call to exact prox!()
-        return prox!(y, ψ, q, ν)
-    elseif ψ isa InexactShiftedProximableFunction
-        # Call to inexact prox!()
-        return prox!(y, ψ, q, ν, ctx_ptr, callback)
+function prox!(
+  y,
+  ψ::Union{InexactShiftedProximableFunction,ShiftedProximableFunction},
+  q,
+  ν,
+  ctx_ptr,
+  callback,
+)
+  if ψ isa ShiftedProximableFunction
+    # Call to exact prox!()
+    return prox!(y, ψ, q, ν)
+  elseif ψ isa InexactShiftedProximableFunction
+    # Call to inexact prox!()
+    return prox!(y, ψ, q, ν, ctx_ptr, callback)
 
-    else
-        error("Combination of ψ::$(typeof(ψ)) presence/lack of pointers is not a valid call to prox!.
-        Please provide pointers for InexactShiftedProximableFunction or omit them for ShiftedProximableFunction.")
-    end
+  else
+    error(
+      "Combination of ψ::$(typeof(ψ)) presence/lack of pointers is not a valid call to prox!.
+Please provide pointers for InexactShiftedProximableFunction or omit them for ShiftedProximableFunction.",
+    )
+  end
 end
