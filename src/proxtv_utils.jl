@@ -10,6 +10,8 @@ export default_proxTV_callback
 export default_proxTV_callback_v2
 export default_proxTV_callback_v3
 
+export update_prox_context!
+
 # This is a helper struct to store the gradient and the proximal term in a compact way.
 # It is used to avoid memory allocations when calling the proximal callback.
 """
@@ -48,6 +50,132 @@ function (m::ModelFunction)(d)
   return dot(m.∇f, d) + m.ψ(d)
 end
 
+### C++ callback functions
+
+"""
+    default_proxTV_callback(s_ptr::Ptr{Cdouble}, s_length::Csize_t, delta_k::Cdouble, ctx_ptr::Ptr{Cvoid})::Cint
+
+Default callback function for ProxTV algorithm. Implements the stopping criterion based on the ratio between
+the duality gap and the model decrease.
+
+# Arguments
+- `s_ptr`: Pointer to the current solution
+- `s_length`: Length of the solution vector
+- `delta_k`: Current duality gap
+- `ctx_ptr`: Pointer to the ProxTVContext object
+
+# Returns
+- `Int32(1)` if the stopping criterion is satisfied
+- `Int32(0)` otherwise
+
+# Note
+The stopping criterion is: δₖ ≤ ((1-κξ)/κξ) * ξₖ
+where ξₖ is the model decrease at iteration k
+"""
+function default_proxTV_callback(
+  s_ptr::Ptr{Cdouble},
+  s_length::Csize_t,
+  delta_k::Cdouble,
+  ctx_ptr::Ptr{Cvoid},
+)::Cint
+  s_k = unsafe_wrap(Vector{Float64}, s_ptr, s_length; own = false)
+  context = unsafe_pointer_to_objref(ctx_ptr)::ProxTVContext
+
+  # In-place operation to avoid memory allocations
+  @. context.s_k_unshifted = s_k - context.shift
+
+  # Computations without allocations
+  ξk = context.hk - context.mk(context.s_k_unshifted) + max(1, abs(context.hk)) * 10 * eps()
+  condition = delta_k ≤ (1 - context.κξ) / context.κξ * ξk
+  return condition ? Int32(1) : Int32(0)
+end
+
+"""
+    default_proxTV_callback_v2(s_ptr::Ptr{Cdouble}, s_length::Csize_t, delta_k::Cdouble, ctx_ptr::Ptr{Cvoid})::Cint
+
+Alternative callback function for ProxTV algorithm. Uses a fixed duality gap threshold from the context
+and ensures the model decrease is non-negative.
+
+# Arguments
+- `s_ptr`: Pointer to the current solution
+- `s_length`: Length of the solution vector
+- `delta_k`: Current duality gap
+- `ctx_ptr`: Pointer to the ProxTVContext object
+
+# Returns
+- `Int32(1)` if the stopping criterion is satisfied
+- `Int32(0)` otherwise
+
+# Note
+The stopping criterion is: (δₖ ≤ dualGap) && (ξₖ ≥ 0)
+where dualGap is fixed in the context
+"""
+function default_proxTV_callback_v2(
+  s_ptr::Ptr{Cdouble},
+  s_length::Csize_t,
+  delta_k::Cdouble,
+  ctx_ptr::Ptr{Cvoid},
+)::Cint
+  s_k = unsafe_wrap(Vector{Float64}, s_ptr, s_length; own = false)
+  context = unsafe_pointer_to_objref(ctx_ptr)::ProxTVContext
+
+  # In-place operation to avoid memory allocations
+  @. context.s_k_unshifted = s_k - context.shift
+
+  # Computations without allocations
+  ξk = context.hk - context.mk(context.s_k_unshifted) + max(1, abs(context.hk)) * 10 * eps()
+
+  condition = (delta_k ≤ context.dualGap) && (ξk ≥ 0)
+
+  return condition ? Int32(1) : Int32(0)
+end
+
+"""
+    default_proxTV_callback_v3(s_ptr::Ptr{Cdouble}, s_length::Csize_t, delta_k::Cdouble, ctx_ptr::Ptr{Cvoid})::Cint
+
+Advanced callback function for ProxTV algorithm. Dynamically updates the duality gap threshold
+based on the model decrease while ensuring it remains non-negative.
+
+# Arguments
+- `s_ptr`: Pointer to the current solution
+- `s_length`: Length of the solution vector
+- `delta_k`: Current duality gap
+- `ctx_ptr`: Pointer to the ProxTVContext object
+
+# Returns
+- `Int32(1)` if the stopping criterion is satisfied
+- `Int32(0)` otherwise
+
+# Note
+The stopping criterion is: (δₖ ≤ dualGap) && (ξₖ ≥ 0)
+where dualGap is dynamically updated as: min(dualGap, ((1-κξ)/κξ) * ξₖ)
+"""
+function default_proxTV_callback_v3(
+  s_ptr::Ptr{Cdouble},
+  s_length::Csize_t,
+  delta_k::Cdouble,
+  ctx_ptr::Ptr{Cvoid},
+)::Cint
+  s_k = unsafe_wrap(Vector{Float64}, s_ptr, s_length; own = false)
+  context = unsafe_pointer_to_objref(ctx_ptr)::ProxTVContext
+
+  # In-place operation to avoid memory allocations
+  @. context.s_k_unshifted = s_k - context.shift
+
+  # Computations without allocations
+  ξk = context.hk - context.mk(context.s_k_unshifted) + max(1, abs(context.hk)) * 10 * eps()
+
+  aux = (1 - context.κξ) / context.κξ * ξk
+
+  if aux < context.dualGap && aux ≥ 0
+    context.dualGap = aux
+  end
+
+  condition = (delta_k ≤ context.dualGap) && (ξk ≥ 0)
+
+  return condition ? Int32(1) : Int32(0)
+end
+
 ## Structure for callback function in iR2/iR2N
 """
     ProxTVContext
@@ -63,8 +191,7 @@ and algorithm parameters.
 - `s_k_unshifted::Vector{Float64}`: current unshifted solution
 - `dualGap::Float64`: target duality gap
 - `prox_stats::Any`: statistics about iterations
-- `callback::Function`: callback function for proximal operator
-- `workspace::Any`: workspace for ProxTV
+- `callback_pointer::Ptr{Cvoid}`: pointer to the C callback function
 - `info::Vector{Float64}`: info array (3 elements)
 - `temp_x::Vector{Float64}`: temporary vector for computations
 - `y_shifted::Vector{Float64}`: for shifted versions
@@ -78,10 +205,9 @@ mutable struct ProxTVContext
   s_k_unshifted::Vector{Float64}
   dualGap::Float64
   prox_stats::Any  # for total number of iterations in ir2n, ir2 and prox
-  callback::Function  # callback function for proximal operator
+  callback_pointer::Ptr{Cvoid}  # pointer to the C callback function
 
   # Allocations for prox!
-  workspace::Any  # workspace for ProxTV
   info::Vector{Float64}  # info array (3 elements)
   temp_x::Vector{Float64}  # temporary vector for computations
   y_shifted::Vector{Float64}  # for shifted versions
@@ -96,8 +222,7 @@ mutable struct ProxTVContext
     s_k_unshifted::Vector{Float64},
     dualGap::Float64,
     prox_stats::Any,
-    callback::Function,
-    workspace::Any,
+    callback_pointer::Ptr{Cvoid},
     info::Vector{Float64},
     temp_x::Vector{Float64},
     y_shifted::Vector{Float64},
@@ -111,14 +236,12 @@ mutable struct ProxTVContext
       s_k_unshifted,
       dualGap,
       prox_stats,
-      callback,
-      workspace,
+      callback_pointer,
       info,
       temp_x,
       y_shifted,
       s,
     )
-    finalizer(x -> freeWorkspace(x.workspace), ctx)
     return ctx
   end
 end
@@ -139,12 +262,15 @@ function ProxTVContext(
   s_k_unshifted = zeros(n)
   hk = 0.0
   mk = ModelFunction(zeros(n), x -> x)
-  workspace = newWorkspace(n)
   info = zeros(Float64, 3)
   temp_x = zeros(Float64, n)
   y_shifted = zeros(Float64, n)
   s = zeros(Float64, n)
   prox_stats = [0.0, [], []]
+
+  # Convert the Julia callback function to a C function pointer
+  callback_pointer =
+    @cfunction(default_proxTV_callback, Cint, (Ptr{Cdouble}, Csize_t, Cdouble, Ptr{Cvoid}))
 
   return ProxTVContext(
     hk,
@@ -154,8 +280,7 @@ function ProxTVContext(
     s_k_unshifted,
     dualGap,
     prox_stats,
-    callback,
-    workspace,
+    callback_pointer,
     info,
     temp_x,
     y_shifted,
@@ -217,33 +342,44 @@ Evaluates the proximity operator of an Lp norm.
 The duality gap at the solution is guaranteed to be less than `h.context.dualGap`
 """
 function prox!(y::AbstractArray, h::NormLp, q::AbstractArray, ν::Real)
-  # Use pre-existing allocations from context
-  ws = h.context.workspace
-  info = h.context.info
+  n = length(y)
 
-  # Adjust lambda to account for ν (multiply λ by ν)
-  lambda_scaled = h.λ * ν
+  # Create a new workspace for this call
+  ws = newWorkspace(n)
+  if ws === nothing
+    throw(ErrorException("Failed to allocate workspace"))
+  end
 
-  positive = Int32(all(v -> v >= 0, y) ? 1 : 0)
+  try
+    info = h.context.info
 
-  # Use the callback from context
-  PN_LPp(
-    q,
-    lambda_scaled,
-    y,
-    info,
-    length(y),
-    h.p,
-    ws,
-    positive,
-    h.context,
-    h.context.callback,
-  )
+    # Adjust lambda to account for ν (multiply λ by ν)
+    lambda_scaled = h.λ * ν
 
-  # add the number of iterations in prox to the context object
-  push!(h.context.prox_stats[3], info[1])
+    positive = Int32(all(v -> v >= 0, y) ? 1 : 0)
 
-  return y
+    # Use the callback from context
+    PN_LPp(
+      q,
+      lambda_scaled,
+      y,
+      info,
+      n,
+      h.p,
+      ws,
+      positive,
+      h.context,
+      h.context.callback_pointer,
+    )
+
+    # add the number of iterations in prox to the context object
+    push!(h.context.prox_stats[3], info[1])
+
+    return y
+  finally
+    # Always free the workspace
+    freeWorkspace(ws)
+  end
 end
 
 """
@@ -371,52 +507,64 @@ Evaluates the proximity operator of a shifted Lp norm.
 Uses the context from `ψ.h` for computations
 """
 function prox!(y::AbstractArray, ψ::ShiftedNormLp, q::AbstractArray, ν::Real)
-  # Use pre-existing allocations from h's context
-  context = ψ.h.context
-  ws = context.workspace
-  info = context.info
-  x = context.temp_x
-  y_shifted = context.y_shifted
-  s = context.s
+  n = length(y)
 
-  # Compute y_shifted = xk + sj + q
-  @. y_shifted = ψ.xk + ψ.sj + q
-
-  # Adjust lambda to account for ν (multiply λ by ν)
-  lambda_scaled = ψ.h.λ * ν
-
-  positive = Int32(all(v -> v >= 0, y_shifted) ? 1 : 0)
-  if ψ.h.p == 1
-    PN_LP1(y_shifted, lambda_scaled, x, info, length(y))
-  elseif ψ.h.p == 2
-    PN_LP2(y_shifted, lambda_scaled, x, info, length(y))
-  elseif ψ.h.p == Inf
-    PN_LPi(y_shifted, lambda_scaled, x, info, length(y), ws)
-  else
-    PN_LPp(
-      y_shifted,
-      lambda_scaled,
-      x,
-      info,
-      length(y),
-      ψ.h.p,
-      ws,
-      positive,
-      context,
-      context.callback,
-    )
+  # Create a new workspace for this call
+  ws = newWorkspace(n)
+  if ws === nothing
+    throw(ErrorException("Failed to allocate workspace"))
   end
 
-  # Compute s = x - xk - sj
-  @. s = x - ψ.xk - ψ.sj
+  try
+    # Use pre-existing allocations from h's context
+    context = ψ.h.context
+    info = context.info
+    x = context.temp_x
+    y_shifted = context.y_shifted
+    s = context.s
 
-  # Store the result in y
-  y .= s
+    # Compute y_shifted = xk + sj + q
+    @. y_shifted = ψ.xk + ψ.sj + q
 
-  # add the number of iterations in prox to the context object
-  push!(context.prox_stats[3], info[1])
+    # Adjust lambda to account for ν (multiply λ by ν)
+    lambda_scaled = ψ.h.λ * ν
 
-  return y
+    positive = Int32(all(v -> v >= 0, y_shifted) ? 1 : 0)
+    if ψ.h.p == 1
+      PN_LP1(y_shifted, lambda_scaled, x, info, length(y))
+    elseif ψ.h.p == 2
+      PN_LP2(y_shifted, lambda_scaled, x, info, length(y))
+    elseif ψ.h.p == Inf
+      PN_LPi(y_shifted, lambda_scaled, x, info, length(y), ws)
+    else
+      PN_LPp(
+        y_shifted,
+        lambda_scaled,
+        x,
+        info,
+        length(y),
+        ψ.h.p,
+        ws,
+        positive,
+        context,
+        context.callback_pointer,
+      )
+    end
+
+    # Compute s = x - xk - sj
+    @. s = x - ψ.xk - ψ.sj
+
+    # Store the result in y
+    y .= s
+
+    # add the number of iterations in prox to the context object
+    push!(context.prox_stats[3], info[1])
+
+    return y
+  finally
+    # Always free the workspace
+    freeWorkspace(ws)
+  end
 end
 
 ### NormTVp and ShiftedNormTVp Implementation
@@ -517,7 +665,6 @@ mutable struct ShiftedNormTVp{
   sol::V2
   shifted_twice::Bool
   xsy::V2
-
   function ShiftedNormTVp(
     h::NormTVp{R,T},
     xk::AbstractVector{R},
@@ -604,33 +751,55 @@ Evaluates the proximity operator of a shifted TV norm.
 Uses the context from `ψ.h` for computations
 """
 function prox!(y::AbstractArray, ψ::ShiftedNormTVp, q::AbstractArray, ν::Real)
-  # Use pre-existing allocations from h's context
-  context = ψ.h.context
-  ws = context.workspace
-  info = context.info
-  x = context.temp_x
-  y_shifted = context.y_shifted
-  s = context.s
+  n = length(y)
 
-  # Compute y_shifted = xk + sj + q
-  @. y_shifted = ψ.xk + ψ.sj + q
+  # Create a new workspace for this call
+  ws = newWorkspace(n)
+  if ws === nothing
+    throw(ErrorException("Failed to allocate workspace"))
+  end
 
-  # Adjust lambda to account for ν
-  lambda_scaled = ψ.h.λ * ν
+  try
+    # Use pre-existing allocations from h's context
+    context = ψ.h.context
+    info = context.info
+    x = context.temp_x
+    y_shifted = context.y_shifted
+    s = context.s
 
-  # Call the TV function from ProxTV package
-  TV(y_shifted, lambda_scaled, x, info, length(y), ψ.h.p, ws, context, context.callback)
+    # Compute y_shifted = xk + sj + q
+    @. y_shifted = ψ.xk + ψ.sj + q
 
-  # Compute s = x - xk - sj
-  @. s = x - ψ.xk - ψ.sj
+    # Adjust lambda to account for ν
+    lambda_scaled = ψ.h.λ * ν
 
-  # Store the result in y
-  y .= s
+    # Call the TV function from ProxTV package
+    TV(
+      y_shifted,
+      lambda_scaled,
+      x,
+      info,
+      length(y),
+      ψ.h.p,
+      ws,
+      context,
+      context.callback_pointer,
+    )
 
-  # add the number of iterations in prox to the context object
-  push!(context.prox_stats[3], info[1])
+    # Compute s = x - xk - sj
+    @. s = x - ψ.xk - ψ.sj
 
-  return y
+    # Store the result in y
+    y .= s
+
+    # add the number of iterations in prox to the context object
+    push!(context.prox_stats[3], info[1])
+
+    return y
+  finally
+    # Always free the workspace
+    freeWorkspace(ws)
+  end
 end
 
 """
@@ -716,128 +885,49 @@ function prox!(
   end
 end
 
-### C++ callback functions
+### Update context before prox! call
 
 """
-    default_proxTV_callback(s_ptr::Ptr{Cdouble}, s_length::Csize_t, delta_k::Cdouble, ctx_ptr::Ptr{Cvoid})::Cint
+    update_prox_context!(solver, ψ)
 
-Default callback function for ProxTV algorithm. Implements the stopping criterion based on the ratio between
-the duality gap and the model decrease.
+Updates the context of an InexactShiftedProximableFunction object before calling prox!.
 
 # Arguments
-- `s_ptr`: Pointer to the current solution
-- `s_length`: Length of the solution vector
-- `delta_k`: Current duality gap
-- `ctx_ptr`: Pointer to the ProxTVContext object
-
-# Returns
-- `Int32(1)` if the stopping criterion is satisfied
-- `Int32(0)` otherwise
-
-# Note
-The stopping criterion is: δₖ ≤ ((1-κξ)/κξ) * ξₖ
-where ξₖ is the model decrease at iteration k
+- `solver`: solver object
+- `ψ`: InexactShiftedProximableFunction object
 """
-function default_proxTV_callback(
-  s_ptr::Ptr{Cdouble},
-  s_length::Csize_t,
-  delta_k::Cdouble,
-  ctx_ptr::Ptr{Cvoid},
-)::Cint
-  s_k = unsafe_wrap(Vector{Float64}, s_ptr, s_length; own = false)
-  context = unsafe_pointer_to_objref(ctx_ptr)::ProxTVContext
-
-  # In-place operation to avoid memory allocations
-  @. context.s_k_unshifted = s_k - context.shift
-
-  # Computations without allocations
-  ξk = context.hk - context.mk(context.s_k_unshifted) + max(1, abs(context.hk)) * 10 * eps()
-  condition = delta_k ≤ (1 - context.κξ) / context.κξ * ξk
-  return condition ? Int32(1) : Int32(0)
+function update_prox_context!(solver, ψ::InexactShiftedProximableFunction)
+  update_prox_context!(solver, ψ, Val(typeof(ψ)))
 end
 
 """
-    default_proxTV_callback_v2(s_ptr::Ptr{Cdouble}, s_length::Csize_t, delta_k::Cdouble, ctx_ptr::Ptr{Cvoid})::Cint
+    update_prox_context!(solver, ψ, T::Val{<:ShiftedNormLp})
 
-Alternative callback function for ProxTV algorithm. Uses a fixed duality gap threshold from the context
-and ensures the model decrease is non-negative.
+Updates the context of a ShiftedNormLp object before calling prox!.
 
 # Arguments
-- `s_ptr`: Pointer to the current solution
-- `s_length`: Length of the solution vector
-- `delta_k`: Current duality gap
-- `ctx_ptr`: Pointer to the ProxTVContext object
-
-# Returns
-- `Int32(1)` if the stopping criterion is satisfied
-- `Int32(0)` otherwise
-
-# Note
-The stopping criterion is: (δₖ ≤ dualGap) && (ξₖ ≥ 0)
-where dualGap is fixed in the context
+- `solver`: solver object
+- `ψ`: ShiftedNormLp object
+- `T`: Type of the object
 """
-function default_proxTV_callback_v2(
-  s_ptr::Ptr{Cdouble},
-  s_length::Csize_t,
-  delta_k::Cdouble,
-  ctx_ptr::Ptr{Cvoid},
-)::Cint
-  s_k = unsafe_wrap(Vector{Float64}, s_ptr, s_length; own = false)
-  context = unsafe_pointer_to_objref(ctx_ptr)::ProxTVContext
-
-  # In-place operation to avoid memory allocations
-  @. context.s_k_unshifted = s_k - context.shift
-
-  # Computations without allocations
-  ξk = context.hk - context.mk(context.s_k_unshifted) + max(1, abs(context.hk)) * 10 * eps()
-
-  condition = (delta_k ≤ context.dualGap) && (ξk ≥ 0)
-
-  return condition ? Int32(1) : Int32(0)
+function update_prox_context!(solver, ψ, T::Val{<:ShiftedNormLp})
+  ψ.h.context.mk.∇f = solver.∇fk
+  ψ.h.context.mk.ψ = d -> ψ(d)  # Use the evaluation function of ψ instead of the object itself
+  @. ψ.h.context.shift = ψ.xk + ψ.sj
 end
 
 """
-    default_proxTV_callback_v3(s_ptr::Ptr{Cdouble}, s_length::Csize_t, delta_k::Cdouble, ctx_ptr::Ptr{Cvoid})::Cint
+    update_prox_context!(solver, ψ, T::Val{<:ShiftedNormTVp})
 
-Advanced callback function for ProxTV algorithm. Dynamically updates the duality gap threshold
-based on the model decrease while ensuring it remains non-negative.
+Updates the context of a ShiftedNormTVp object before calling prox!.
 
 # Arguments
-- `s_ptr`: Pointer to the current solution
-- `s_length`: Length of the solution vector
-- `delta_k`: Current duality gap
-- `ctx_ptr`: Pointer to the ProxTVContext object
-
-# Returns
-- `Int32(1)` if the stopping criterion is satisfied
-- `Int32(0)` otherwise
-
-# Note
-The stopping criterion is: (δₖ ≤ dualGap) && (ξₖ ≥ 0)
-where dualGap is dynamically updated as: min(dualGap, ((1-κξ)/κξ) * ξₖ)
+- `solver`: solver object
+- `ψ`: ShiftedNormTVp object
+- `T`: Type of the object
 """
-function default_proxTV_callback_v3(
-  s_ptr::Ptr{Cdouble},
-  s_length::Csize_t,
-  delta_k::Cdouble,
-  ctx_ptr::Ptr{Cvoid},
-)::Cint
-  s_k = unsafe_wrap(Vector{Float64}, s_ptr, s_length; own = false)
-  context = unsafe_pointer_to_objref(ctx_ptr)::ProxTVContext
-
-  # In-place operation to avoid memory allocations
-  @. context.s_k_unshifted = s_k - context.shift
-
-  # Computations without allocations
-  ξk = context.hk - context.mk(context.s_k_unshifted) + max(1, abs(context.hk)) * 10 * eps()
-
-  aux = (1 - context.κξ) / context.κξ * ξk
-
-  if aux < context.dualGap && aux ≥ 0
-    context.dualGap = aux
-  end
-
-  condition = (delta_k ≤ context.dualGap) && (ξk ≥ 0)
-
-  return condition ? Int32(1) : Int32(0)
+function update_prox_context!(solver, ψ, T::Val{<:ShiftedNormTVp})
+  ψ.h.context.mk.∇f = solver.∇fk
+  ψ.h.context.mk.ψ = d -> ψ(d)  # Use the evaluation function of ψ instead of the object itself
+  @. ψ.h.context.shift = ψ.xk + ψ.sj
 end
