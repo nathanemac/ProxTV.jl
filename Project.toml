@@ -4,7 +4,6 @@ authors = ["Nathan Allaire <nathan.allaire@polymtl.ca> and contributors"]
 version = "1.1.0"
 
 [deps]
-CoverageTools = "a2a73e94-6d28-4b3b-8c91-3a83981b5062"
 JuliaFormatter = "98e50ef6-434e-11e9-1051-2b60c6c9e899"
 LAPACK_jll = "51474c39-65e3-53ba-86ba-03b1b862ec14"
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
@@ -13,7 +12,6 @@ ShiftedProximalOperators = "d4fd37fa-580c-4e43-9b30-361c21aae263"
 proxTV_jll = "700117f8-5dbb-54dd-9908-6f3eb0e21f87"
 
 [compat]
-CoverageTools = "1"
 JuliaFormatter = "1"
 LAPACK_jll = "3.12.0"
 LinearAlgebra = "1"

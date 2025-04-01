@@ -27,5 +27,5 @@ deploydocs(;
   repo = "github.com/nathanemac/ProxTV.jl",
   devbranch = "main",
   push_preview = true,
-  deploy_config = Documenter.GitHubActions(),
+  deploy_config = Documenter.CodeDev(),
 )
