@@ -20,4 +20,9 @@ makedocs(;
   ],
 )
 
-deploydocs(; repo = "github.com/nathanemac/ProxTV.jl")
+deploydocs(;
+  repo = "github.com/nathanemac/ProxTV.jl",
+  devbranch = "main",
+  push_preview = true,
+  deploy_config = Documenter.GitHubActions(),
+)
