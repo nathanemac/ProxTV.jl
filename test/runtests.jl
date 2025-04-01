@@ -6,7 +6,12 @@ using ShiftedProximalOperators
 include("../src/libproxtv.jl")
 include("../src/proxtv_utils.jl")
 
-function simple_callback(s_ptr::Ptr{Cdouble}, s_length::Csize_t, delta_k::Cdouble, ctx_ptr::Ptr{Cvoid})
+function simple_callback(
+  s_ptr::Ptr{Cdouble},
+  s_length::Csize_t,
+  delta_k::Cdouble,
+  ctx_ptr::Ptr{Cvoid},
+)
   return Cint(0)
 end
 
@@ -29,10 +34,10 @@ end
   positive = Int32(0)
   dualGap = 1e-4
 
+  ctx = ProxTVContext(n)
 
-  ctx = AlgorithmContextCallback(dualGap=dualGap)
-
-  callback_pointer = @cfunction(simple_callback, Cint, (Ptr{Cdouble}, Csize_t, Cdouble, Ptr{Cvoid}))
+  callback_pointer =
+    @cfunction(simple_callback, Cint, (Ptr{Cdouble}, Csize_t, Cdouble, Ptr{Cvoid}))
   @test PN_LPp(y, lambda, x, info, n, p, ws, positive, ctx, callback_pointer) == 1 # 1 is the expected return value of the function. This means that the function has been executed successfully.
 
   @test TV(y, lambda, x, info, n, p, ws, ctx, callback_pointer) == 1
