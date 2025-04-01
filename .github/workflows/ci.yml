@@ -2,11 +2,9 @@ name: CI
 
 on:
   push:
-    branches:
-      - main
+    branches: [main]
   pull_request:
-    branches:
-      - main
+    branches: [main]
 
 jobs:
   test:
@@ -17,14 +15,17 @@ jobs:
         with:
           version: "1.11"
       - uses: julia-actions/cache@v1
+
       - name: Install dependencies
-        run: |
-          julia --project=. -e 'using Pkg; Pkg.instantiate()'
+        run: julia --project=. -e 'using Pkg; Pkg.instantiate()'
+
       - name: Run tests with coverage
-        run: |
-          julia --project=. -e 'using Pkg; Pkg.test(coverage=true)'
-          julia --project=. -e 'using Pkg; using Test; using CoverageTools; CoverageTools.write_coverage("lcov.info")'
-      - name: Upload coverage to Codecov
+        run: julia --project=. -e 'using Pkg; Pkg.test(coverage=true)'
+
+      - name: Generate lcov.info
+        run: julia --project=. -e 'using Pkg; using Coverage; LCOV.write("lcov.info", process_folder())'
+
+      - name: Upload to Codecov
         uses: codecov/codecov-action@v5
         with:
           files: ./lcov.info
@@ -33,6 +34,7 @@ jobs:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
 
   docs:
+    if: github.event_name == 'push' # ❗ Ne déploie QUE sur push (évite les erreurs sur PR)
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -43,8 +45,7 @@ jobs:
           version: "1.11"
       - uses: julia-actions/cache@v1
       - name: Install dependencies
-        run: |
-          julia --project=docs -e 'using Pkg; Pkg.instantiate()'
+        run: julia --project=docs -e 'using Pkg; Pkg.instantiate()'
       - name: Build and deploy documentation
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -59,8 +60,6 @@ jobs:
           version: "1.11"
       - uses: julia-actions/cache@v1
       - name: Install dependencies
-        run: |
-          julia --project=. -e 'using Pkg; Pkg.instantiate()'
+        run: julia --project=. -e 'using Pkg; Pkg.instantiate()'
       - name: Run linting
-        run: |
-          julia --project=. -e 'using Pkg; Pkg.add("JuliaFormatter"); using JuliaFormatter; format(".")'
+        run: julia --project=. -e 'using Pkg; Pkg.add("JuliaFormatter"); using JuliaFormatter; format(".")'
