@@ -26,7 +26,7 @@ jobs:
         run: julia --project=. -e 'using Pkg; Pkg.add("Coverage")'
 
       - name: Generate lcov.info
-        run: julia --project=. -e 'using Pkg; using Coverage; LCOV.write("lcov.info", process_folder())'
+        run: julia --project=. -e 'using Coverage; LCOV.write("lcov.info", process_folder())'
 
       - name: Upload to Codecov
         uses: codecov/codecov-action@v5
