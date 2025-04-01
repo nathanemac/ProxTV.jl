@@ -10,7 +10,10 @@ makedocs(;
   authors = "Nathan Allaire <nathan.allaire@polymtl.ca> and contributors",
   repo = "https://github.com/nathanemac/ProxTV.jl/blob/{commit}{path}#{line}",
   sitename = "ProxTV.jl",
-  format = Documenter.HTML(; canonical = "https://nathanemac.github.io/ProxTV.jl"),
+  format = Documenter.HTML(
+    canonical = "https://nathanemac.github.io/ProxTV.jl",
+    repolink = "https://github.com/nathanemac/ProxTV.jl",
+  ),
   pages = [
     "index.md"
     [
