@@ -17,19 +17,13 @@ jobs:
         with:
           version: "1.11"
       - uses: julia-actions/cache@v1
-
       - name: Install dependencies
         run: |
           julia --project=. -e 'using Pkg; Pkg.instantiate()'
-
       - name: Run tests with coverage
         run: |
           julia --project=. -e 'using Pkg; Pkg.test(coverage=true)'
-
-      - name: Generate lcov.info file
-        run: |
           julia --project=. -e 'using Pkg; using Coverage; LCOV.write("lcov.info", process_folder())'
-
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v5
         with:
@@ -37,6 +31,24 @@ jobs:
           fail_ci_if_error: true
         env:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+
+  docs:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: julia-actions/setup-julia@v2
+        with:
+          version: "1.11"
+      - uses: julia-actions/cache@v1
+      - name: Install dependencies
+        run: |
+          julia --project=docs -e 'using Pkg; Pkg.instantiate()'
+      - name: Build and deploy documentation
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: julia --project=docs docs/make.jl
 
   lint:
     runs-on: ubuntu-latest
