@@ -12,6 +12,27 @@ Pages = ["95-reference.md"]
 Pages = ["95-reference.md"]
 ```
 
+## All Package Exports
+
 ```@autodocs
 Modules = [ProxTV]
+Order = [:constant, :function, :macro]
+Filter = t -> !(t in [
+    ProxTV.ModelFunction,
+    ProxTV.ProxTVContext,
+    ProxTV.InexactShiftedProximableFunction,
+    ProxTV.NormLp,
+    ProxTV.ShiftedNormLp,
+    ProxTV.NormTVp,
+    ProxTV.ShiftedNormTVp
+])
+```
+
+## Internal Types and Functions
+
+This section contains documentation for internal functions not typically used directly by users.
+
+```@autodocs
+Modules = [ProxTV]
+Public = false
 ```

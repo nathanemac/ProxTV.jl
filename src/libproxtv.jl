@@ -135,7 +135,14 @@ function solveLinearLP(z, n, p, lambda, s)
   )::Cvoid
 end
 
-# original TV function
+"""
+    TV(y, lambda, x, info, n, p, ws, ctx, callback)
+
+Compute the proximal operator of the Total Variation (TV) regularization with any p-norm on a 1D signal, designed for internal use with InexactShiftedProximableFunction.
+
+# Returns
+1 if the function was successful, 0 otherwise.
+"""
 function TV(y, lambda, x, info, n, p, ws, ctx, callback)
   objGap = ctx.dualGap
   ctx_ptr = Ptr{Cvoid}(pointer_from_objref(ctx))
@@ -152,11 +159,52 @@ function TV(y, lambda, x, info, n, p, ws, ctx, callback)
     callback::Ptr{Cvoid},
   )::Int32
 end
+"""
+    TV(y::AbstractVector{Float64}, lambda::Float64, x::AbstractVector{Float64}, p::Float64=1.0)
 
-# overloaded TV function with less inputs
-function TV(y, lambda, x, p)
+Compute the proximal operator of the Total Variation (TV) regularization with any p-norm on a 1D signal.
+
+This function computes the solution to the following optimization problem:
+```math
+\\min_x \\frac{1}{2}\\|x-y\\|_2^2 + \\lambda\\sum_{i=1}^{n-1} |x_{i+1} - x_i|^p
+```
+
+# Arguments
+- `y`: Input signal to denoise
+- `lambda`: Regularization parameter (higher values give more smoothing)
+- `x`: Pre-allocated output buffer to store the result
+- `p`: The p-norm value (default is 1.0 for L1 norm)
+
+# Returns
+Nothing, the result is stored in-place in the `x` parameter.
+
+# Examples
+```julia
+using ProxTV
+
+# Generate random signal
+n = 100
+y = cumsum(randn(n)) # Random walk signal
+lambda = 2.0 # Regularization parameter
+x = zeros(n) # Output buffer
+
+# Compute proximal operator of TV-L1 norm
+ProxTV.TV(y, lambda, x, 1.0)
+
+# For L2 norm (quadratic variation)
+x2 = zeros(n)
+ProxTV.TV(y, lambda, x2, 2.0)
+
+# For custom p-norm
+x3 = zeros(n)
+ProxTV.TV(y, lambda, x3, 1.5)
+```
+
+See also: [`TVp_norm`](@ref)
+"""
+function TV(y, lambda, x, p = 1.0)
   n = length(y)                  # works for nD signals
-  info = []                      # stores the information about the execution of the function
+  info = zeros(Float64, 3)       # stores the information about the execution of the function
   ws = ProxTV.newWorkspace(n)    # define a workspace for memory management
   @ccall libproxtv.TV(
     y::Ptr{Float64},
@@ -167,6 +215,7 @@ function TV(y, lambda, x, p)
     p::Float64,
     ws::Ptr{Workspace},
   )::Int32
+  freeWorkspace(ws)              # free the workspace
 end
 
 function PN_TV1(y, lambda, x, info, n, sigma, ws)

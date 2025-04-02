@@ -28,7 +28,7 @@ ShiftedNormTVp
 ## ShiftedProximalOperators Integration
 
 ```@docs
-prox!
-shifted
-shift!
+prox!(y, ψ::Union{InexactShiftedProximableFunction,ShiftedProximableFunction}, q, ν)
+shifted(h::Union{NormLp,NormTVp}, xk::AbstractVector)
+shift!(ψ::Union{ShiftedNormLp,ShiftedNormTVp}, shift::Vector)
 ```
