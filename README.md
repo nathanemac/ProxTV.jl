@@ -32,7 +32,6 @@ pkg> add ProxTV
 Here is an example of how to use ProxTV.jl to compute the proximal operator of the Total Variation (TV) regularization with a p-norm on a 1D signal.
 
 ```julia
-
 using ProxTV
 
 n = rand(10:100)
@@ -43,7 +42,33 @@ p = 1.32 # inexact prox computation : no closed-form for p = 1.32
 ProxTV.TV(y, lambda, x, p)
 ```
 
-Other examples can be found in the [documentation](https://nathanemac.github.io/ProxTV.jl/stable).
+Comprehensive documentation and more examples can be found in the [online documentation](https://nathanemac.github.io/ProxTV.jl/stable).
+
+## Features
+
+- Fast computation of Total Variation proximal operators
+- Support for 1D and 2D signals
+- Support for any p-norm (L1, L2, and custom p-norms)
+- Weighted regularization
+- Integration with ShiftedProximalOperators.jl
+
+## Documentation
+
+The documentation includes:
+
+- Getting Started guide
+- Detailed examples for various use cases
+- Complete API reference
+- Contributing guidelines
+
+## Tests
+
+ProxTV.jl includes comprehensive tests for:
+
+- Core TV functions
+- Integration with ShiftedProximalOperators
+- Different p-norms
+- Different signal dimensions
 
 ## How to Cite
 
