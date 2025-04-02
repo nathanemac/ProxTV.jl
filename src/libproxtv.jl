@@ -159,8 +159,9 @@ function TV(y, lambda, x, info, n, p, ws, ctx, callback)
     callback::Ptr{Cvoid},
   )::Int32
 end
+
 """
-    TV(y::AbstractVector{Float64}, lambda::Float64, x::AbstractVector{Float64}, p::Float64=1.0)
+    TV(y, lambda, x, p=1.0)
 
 Compute the proximal operator of the Total Variation (TV) regularization with any p-norm on a 1D signal.
 

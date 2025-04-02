@@ -80,12 +80,16 @@ using ShiftedProximalOperators
 
 # Create a TV norm function
 n = 100
-tv_func = NormTVp(n, 1.0, 1.0) # n, lambda, p
+context = ProxTVContext(tv_func)
+tv_func = NormTVp(0.1, 1.32, context) # n, lambda, p
+shifted_tv_func = shifted(tv_func, ones(n))
 
 # Create input signal
 y = cumsum(randn(n))
 
 # Compute prox directly
 x = similar(y)
+
+# Note that the following might not work, since it is used internally by RegularizedOptimization with specific arguments.
 prox!(x, tv_func, y, 1.0)
 ```

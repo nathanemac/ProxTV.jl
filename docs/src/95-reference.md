@@ -25,7 +25,9 @@ Filter = t -> !(t in [
     ProxTV.ShiftedNormLp,
     ProxTV.NormTVp,
     ProxTV.ShiftedNormTVp
-])
+]) && !startswith(string(t), "prox!") &&
+       !startswith(string(t), "shifted") &&
+       !startswith(string(t), "shift!")
 ```
 
 ## Internal Types and Functions
