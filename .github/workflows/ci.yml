@@ -22,11 +22,14 @@ jobs:
       - name: Run tests with coverage
         run: julia --project=. -e 'using Pkg; Pkg.test(coverage=true)'
 
+      - name: Remove CoverageTools if present
+        run: julia -e 'using Pkg; try Pkg.rm("CoverageTools") catch end'
+
       - name: Add Coverage.jl
-        run: julia --project=. -e 'using Pkg; Pkg.add("Coverage")'
+        run: julia --project=. -e 'using Pkg; Pkg.add(PackageSpec(name="Coverage", version="1.4"))'
 
       - name: Generate lcov.info
-        run: julia --project=. -e 'using Coverage; Coverage.LCOV.write("lcov.info", Coverage.process_folder())'
+        run: julia --project=. -e 'using Coverage; Coverage.LCOV.writefile("lcov.info", Coverage.process_folder())'
 
       - name: Upload to Codecov
         uses: codecov/codecov-action@v5
