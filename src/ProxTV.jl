@@ -22,7 +22,7 @@ export ModelFunction
 export ProxTVContext
 export InexactShiftedProximableFunction
 export NormLp, ShiftedNormLp, NormTVp, ShiftedNormTVp
-export prox!, shifted, shift!, TVp_norm
+export prox!, shifted, shift!, TV, TVp_norm
 export fun_name, fun_expr, fun_params
 
 # main library functions

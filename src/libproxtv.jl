@@ -54,21 +54,21 @@ end
 
 # original PN_LPp function
 function PN_LPp(y, lambda, x, info, n, p, ws, positive, ctx, callback)
-    objGap = ctx.dualGap
-    ctx_ptr = Ptr{Cvoid}(pointer_from_objref(ctx))
-    @ccall libproxtv.PN_LPp(
-        y::Ptr{Float64},
-        lambda::Float64,
-        x::Ptr{Float64},
-        info::Ptr{Float64},
-        n::Int32,
-        p::Float64,
-        ws::Ptr{Workspace},
-        positive::Int32,
-        objGap::Float64,
-        ctx_ptr::Ptr{Cvoid},
-        callback::Ptr{Cvoid},
-    )::Int32
+  objGap = ctx.dualGap
+  ctx_ptr = Ptr{Cvoid}(pointer_from_objref(ctx))
+  @ccall libproxtv.PN_LPp(
+    y::Ptr{Float64},
+    lambda::Float64,
+    x::Ptr{Float64},
+    info::Ptr{Float64},
+    n::Int32,
+    p::Float64,
+    ws::Ptr{Workspace},
+    positive::Int32,
+    objGap::Float64,
+    ctx_ptr::Ptr{Cvoid},
+    callback::Ptr{Cvoid},
+  )::Int32
 end
 
 # overloaded PN_LPp function with less inputs

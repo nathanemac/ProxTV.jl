@@ -16,29 +16,32 @@ function simple_callback(
 end
 
 @testset "ProxTV.jl" begin
-  # test on a simple function :
-  n = 4
-  x = rand(n)
-  p = 2.0
-  @test isapprox(LPnorm(x, n, p), norm(x), atol = 1e-5)
+  # Basic internal tests
+  @testset "Internal functions" begin
+    # test on a simple function :
+    n = 4
+    x = rand(n)
+    p = 2.0
+    @test isapprox(LPnorm(x, n, p), norm(x), atol = 1e-5)
 
-  ## test on more advanced functions :
+    ## test on more advanced functions :
 
-  # test PN_LPp
-  n = 3
-  y = [1.0, -2.0, 3.0]
-  lambda = 0.1
-  x = zeros(n)
-  info = zeros(Float64, 3)
-  ws = newWorkspace(n)
-  positive = Int32(0)
-  dualGap = 1e-4
+    # test PN_LPp
+    n = 3
+    y = [1.0, -2.0, 3.0]
+    lambda = 0.1
+    x = zeros(n)
+    info = zeros(Float64, 3)
+    ws = newWorkspace(n)
+    positive = Int32(0)
+    dualGap = 1e-4
 
-  ctx = ProxTVContext(n)
+    ctx = ProxTVContext(n)
 
-  callback_pointer =
-    @cfunction(simple_callback, Cint, (Ptr{Cdouble}, Csize_t, Cdouble, Ptr{Cvoid}))
-  @test PN_LPp(y, lambda, x, info, n, p, ws, positive, ctx, callback_pointer) == 1 # 1 is the expected return value of the function. This means that the function has been executed successfully.
+    callback_pointer =
+      @cfunction(simple_callback, Cint, (Ptr{Cdouble}, Csize_t, Cdouble, Ptr{Cvoid}))
+    @test PN_LPp(y, lambda, x, info, n, p, ws, positive, ctx, callback_pointer) == 1 # 1 is the expected return value of the function. This means that the function has been executed successfully.
 
-  @test TV(y, lambda, x, info, n, p, ws, ctx, callback_pointer) == 1
+    @test TV(y, lambda, x, info, n, p, ws, ctx, callback_pointer) == 1
+  end
 end
