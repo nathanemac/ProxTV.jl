@@ -204,7 +204,7 @@ mutable struct ProxTVContext
   shift::Vector{Float64}
   s_k_unshifted::Vector{Float64}
   dualGap::Float64
-  prox_stats::Any  # for total number of iterations in ir2n, ir2 and prox
+  prox_stats::Vector{Int64}  # for total number of iterations in ir2n, ir2 and prox
   callback_pointer::Ptr{Cvoid}  # pointer to the C callback function
 
   # Allocations for prox!
@@ -221,7 +221,7 @@ mutable struct ProxTVContext
     shift::Vector{Float64},
     s_k_unshifted::Vector{Float64},
     dualGap::Float64,
-    prox_stats::Any,
+    prox_stats::Vector{Int64},
     callback_pointer::Ptr{Cvoid},
     info::Vector{Float64},
     temp_x::Vector{Float64},
@@ -266,7 +266,7 @@ function ProxTVContext(
   temp_x = zeros(Float64, n)
   y_shifted = zeros(Float64, n)
   s = zeros(Float64, n)
-  prox_stats = zeros(3)
+  prox_stats = zeros(Int64, 3)
 
   # Convert the Julia callback function to a C function pointer
   callback_pointer =
@@ -373,7 +373,7 @@ function prox!(y::AbstractArray, h::NormLp, q::AbstractArray, ν::Real)
     )
 
     # add the number of iterations in prox to the context object
-    h.context.prox_stats[3] += info[1]
+    h.context.prox_stats[3] += Int64(info[1])
 
     return y
   finally
@@ -558,7 +558,7 @@ function prox!(y::AbstractArray, ψ::ShiftedNormLp, q::AbstractArray, ν::Real)
     y .= s
 
     # add the number of iterations in prox to the context object
-    context.prox_stats[3] += info[1]
+    context.prox_stats[3] += Int64(info[1])
 
     return y
   finally
@@ -793,7 +793,7 @@ function prox!(y::AbstractArray, ψ::ShiftedNormTVp, q::AbstractArray, ν::Real)
     y .= s
 
     # add the number of iterations in prox to the context object
-    context.prox_stats[3] += info[1]
+    context.prox_stats[3] += Int64(info[1])
 
     return y
   finally
