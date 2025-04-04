@@ -266,7 +266,7 @@ function ProxTVContext(
   temp_x = zeros(Float64, n)
   y_shifted = zeros(Float64, n)
   s = zeros(Float64, n)
-  prox_stats = [0.0, [], []]
+  prox_stats = zeros(3)
 
   # Convert the Julia callback function to a C function pointer
   callback_pointer =
@@ -373,7 +373,7 @@ function prox!(y::AbstractArray, h::NormLp, q::AbstractArray, ν::Real)
     )
 
     # add the number of iterations in prox to the context object
-    push!(h.context.prox_stats[3], info[1])
+    h.context.prox_stats[3] += info[1]
 
     return y
   finally
@@ -558,7 +558,7 @@ function prox!(y::AbstractArray, ψ::ShiftedNormLp, q::AbstractArray, ν::Real)
     y .= s
 
     # add the number of iterations in prox to the context object
-    push!(context.prox_stats[3], info[1])
+    context.prox_stats[3] += info[1]
 
     return y
   finally
@@ -793,7 +793,7 @@ function prox!(y::AbstractArray, ψ::ShiftedNormTVp, q::AbstractArray, ν::Real)
     y .= s
 
     # add the number of iterations in prox to the context object
-    push!(context.prox_stats[3], info[1])
+    context.prox_stats[3] += info[1]
 
     return y
   finally
@@ -888,7 +888,7 @@ end
 ### Update context before prox! call
 
 """
-    update_prox_context!(solver, ψ)
+    update_prox_context!(solver, stats, ψ)
 
 Updates the context of an InexactShiftedProximableFunction object before calling prox!.
 
@@ -896,21 +896,23 @@ Updates the context of an InexactShiftedProximableFunction object before calling
 - `solver`: solver object
 - `ψ`: InexactShiftedProximableFunction object
 """
-function update_prox_context!(solver, ψ::InexactShiftedProximableFunction)
-  update_prox_context!(solver, ψ, Val(typeof(ψ)))
+function update_prox_context!(solver, stats, ψ::InexactShiftedProximableFunction)
+  update_prox_context!(solver, stats, ψ, Val(typeof(ψ)))
 end
 
 """
-    update_prox_context!(solver, ψ, T::Val{<:ShiftedNormLp})
+    update_prox_context!(solver, stats, ψ, T::Val{<:ShiftedNormLp})
 
 Updates the context of a ShiftedNormLp object before calling prox!.
 
 # Arguments
 - `solver`: solver object
+- `stats`: stats object
 - `ψ`: ShiftedNormLp object
 - `T`: Type of the object
 """
-function update_prox_context!(solver, ψ, T::Val{<:ShiftedNormLp})
+function update_prox_context!(solver, stats, ψ, T::Val{<:ShiftedNormLp})
+  ψ.h.context.hk = stats.solver_specific[:nonsmooth_obj]
   ψ.h.context.mk.∇f = solver.∇fk
   ψ.h.context.mk.ψ = d -> ψ(d)  # Use the evaluation function of ψ instead of the object itself
   @. ψ.h.context.shift = ψ.xk + ψ.sj
@@ -926,7 +928,8 @@ Updates the context of a ShiftedNormTVp object before calling prox!.
 - `ψ`: ShiftedNormTVp object
 - `T`: Type of the object
 """
-function update_prox_context!(solver, ψ, T::Val{<:ShiftedNormTVp})
+function update_prox_context!(solver, stats, ψ, T::Val{<:ShiftedNormTVp})
+  ψ.h.context.hk = stats.solver_specific[:nonsmooth_obj]
   ψ.h.context.mk.∇f = solver.∇fk
   ψ.h.context.mk.ψ = d -> ψ(d)  # Use the evaluation function of ψ instead of the object itself
   @. ψ.h.context.shift = ψ.xk + ψ.sj
