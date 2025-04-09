@@ -78,15 +78,18 @@ function default_proxTV_callback(
   delta_k::Cdouble,
   ctx_ptr::Ptr{Cvoid},
 )::Cint
-  s_k = unsafe_wrap(Vector{Float64}, s_ptr, s_length; own = false)
+
   context = unsafe_pointer_to_objref(ctx_ptr)::ProxTVContext
+  context.s_k .= unsafe_wrap(Vector{Float64}, s_ptr, s_length)
 
   # In-place operation to avoid memory allocations
-  @. context.s_k_unshifted = s_k - context.shift
+  @. context.s_k_unshifted = context.s_k - context.shift
 
   # Computations without allocations
-  ξk = context.hk - context.mk(context.s_k_unshifted) + max(1, abs(context.hk)) * 10 * eps()
-  condition = delta_k ≤ (1 - context.κξ) / context.κξ * ξk
+  ξk =
+    context.hk - Float64(context.mk(context.s_k_unshifted)) +
+    max(1, abs(context.hk)) * 10 * eps()
+  condition = delta_k ≤ (1.0 - context.κξ) / context.κξ * ξk
   return condition ? Int32(1) : Int32(0)
 end
 
@@ -212,6 +215,7 @@ mutable struct ProxTVContext
   temp_x::Vector{Float64}  # temporary vector for computations
   y_shifted::Vector{Float64}  # for shifted versions
   s::Vector{Float64}  # to store s = x - xk - sj
+  s_k::Vector{Float64}  # to store s_k in the callback
 
   # Constructeur interne
   function ProxTVContext(
@@ -227,6 +231,7 @@ mutable struct ProxTVContext
     temp_x::Vector{Float64},
     y_shifted::Vector{Float64},
     s::Vector{Float64},
+    s_k::Vector{Float64},
   )
     ctx = new(
       hk,
@@ -241,6 +246,7 @@ mutable struct ProxTVContext
       temp_x,
       y_shifted,
       s,
+      s_k,
     )
     return ctx
   end
@@ -249,7 +255,7 @@ end
 # Constructeur externe
 function ProxTVContext(
   n::Int;
-  κξ = 3 / 4,
+  κξ = 0.75,
   dualGap = 0.0,
   callback::Function = default_proxTV_callback,
 )
@@ -267,6 +273,7 @@ function ProxTVContext(
   y_shifted = zeros(Float64, n)
   s = zeros(Float64, n)
   prox_stats = zeros(Int64, 3)
+  s_k = zeros(Float64, n)
 
   # Convert the Julia callback function to a C function pointer
   callback_pointer =
@@ -285,6 +292,7 @@ function ProxTVContext(
     temp_x,
     y_shifted,
     s,
+    s_k,
   )
 end
 
