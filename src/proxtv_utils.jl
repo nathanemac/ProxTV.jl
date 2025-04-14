@@ -80,18 +80,38 @@ function default_proxTV_callback(
 )::Cint
 
   context = unsafe_pointer_to_objref(ctx_ptr)::ProxTVContext
-  context.s_k .= unsafe_wrap(Vector{Float64}, s_ptr, s_length)
+  @inbounds for i = 1:s_length
+    context.s_k[i] = unsafe_load(s_ptr, i)
+  end
 
   # In-place operation to avoid memory allocations
   @. context.s_k_unshifted = context.s_k - context.shift
 
-  # Computations without allocations
-  ξk =
-    context.hk - Float64(context.mk(context.s_k_unshifted)) +
-    max(1, abs(context.hk)) * 10 * eps()
-  condition = delta_k ≤ (1.0 - context.κξ) / context.κξ * ξk
-  return condition ? Int32(1) : Int32(0)
+  n = Int(s_length)
+
+  ψ_val::Float64 = 0.0  # annotation stricte pour éviter tout boxing
+  if context.h_symb == :lp
+    ψ_val = LPnorm(context.s_k, n, context.p)
+  elseif context.h_symb == :tvp
+    ψ_val = TVp_norm(context.s_k, n, context.p)
+  end
+
+  ϕ_val::Float64 = 0.0  # annotation stricte pour éviter tout boxing
+  ϕ_val = dot(context.∇fk, context.s_k_unshifted)
+  mks = ϕ_val + ψ_val
+
+  local_hk = context.hk::Float64
+  local_κξ = context.κξ::Float64
+
+  let
+    local_mks = mks::Float64
+    ξk::Float64 = local_hk - local_mks
+    ratio::Float64 = (1.0 - local_κξ) / local_κξ
+    condition::Bool = delta_k ≤ ratio * ξk
+    return condition ? Int32(1) : Int32(0)
+  end
 end
+
 
 """
     default_proxTV_callback_v2(s_ptr::Ptr{Cdouble}, s_length::Csize_t, delta_k::Cdouble, ctx_ptr::Ptr{Cvoid})::Cint
@@ -188,7 +208,8 @@ and algorithm parameters.
 
 # Fields
 - `hk::Float64`: current step size
-- `mk::ModelFunction`: model function (gradient + proximal term)
+- `∇fk::Vector{Float64}`: gradient of the function at the current point
+- `h_symb::Symbol`: symbol of h to evaluate in the callback
 - `κξ::Float64`: control parameter between 1/2 and 1
 - `shift::Vector{Float64}`: shift vector
 - `s_k_unshifted::Vector{Float64}`: current unshifted solution
@@ -200,9 +221,12 @@ and algorithm parameters.
 - `y_shifted::Vector{Float64}`: for shifted versions
 - `s::Vector{Float64}`: to store s = x - xk - sj
 """
-mutable struct ProxTVContext
+mutable struct ProxTVContext{F}
   hk::Float64
-  mk::ModelFunction
+  h_symb::Symbol # symbol of the function to evaluate
+  ∇fk::Vector{Float64}
+  h_fun::F
+  p::Real
   κξ::Float64
   shift::Vector{Float64}
   s_k_unshifted::Vector{Float64}
@@ -218,9 +242,12 @@ mutable struct ProxTVContext
   s_k::Vector{Float64}  # to store s_k in the callback
 
   # Constructeur interne
-  function ProxTVContext(
+  function ProxTVContext{F}(
     hk::Float64,
-    mk::ModelFunction,
+    h_symb::Symbol,
+    ∇fk::Vector{Float64},
+    h_fun::F,
+    p::Real,
     κξ::Float64,
     shift::Vector{Float64},
     s_k_unshifted::Vector{Float64},
@@ -232,10 +259,13 @@ mutable struct ProxTVContext
     y_shifted::Vector{Float64},
     s::Vector{Float64},
     s_k::Vector{Float64},
-  )
-    ctx = new(
+  ) where {F}
+    ctx = new{F}(
       hk,
-      mk,
+      h_symb,
+      ∇fk,
+      h_fun,
+      p,
       κξ,
       shift,
       s_k_unshifted,
@@ -254,7 +284,9 @@ end
 
 # Constructeur externe
 function ProxTVContext(
-  n::Int;
+  n::Int,
+  h_symb::Symbol,
+  p::Real;
   κξ = 0.75,
   dualGap = 0.0,
   callback::Function = default_proxTV_callback,
@@ -263,11 +295,16 @@ function ProxTVContext(
   n <= 0 && throw(ArgumentError("number of variables must be positive"))
   (κξ <= 1 / 2 || κξ >= 1) && throw(ArgumentError("κξ must be strictly between 1/2 and 1"))
   dualGap < 0 && throw(ArgumentError("dualGap must be nonnegative"))
-
+  p >= 1 || throw(ArgumentError("p must be greater than or equal to one"))
   shift = zeros(n)
   s_k_unshifted = zeros(n)
   hk = 0.0
-  mk = ModelFunction(zeros(n), x -> x)
+  ∇fk = similar(shift)
+  if h_symb == :lp
+    h_fun = LPnorm
+  elseif h_symb == :tvp
+    h_fun = TVp_norm
+  end
   info = zeros(Float64, 3)
   temp_x = zeros(Float64, n)
   y_shifted = zeros(Float64, n)
@@ -279,9 +316,12 @@ function ProxTVContext(
   callback_pointer =
     @cfunction(default_proxTV_callback, Cint, (Ptr{Cdouble}, Csize_t, Cdouble, Ptr{Cvoid}))
 
-  return ProxTVContext(
+  return ProxTVContext{typeof(h_fun)}(
     hk,
-    mk,
+    h_symb,
+    ∇fk,
+    h_fun,
+    p,
     κξ,
     shift,
     s_k_unshifted,
@@ -330,10 +370,18 @@ mutable struct NormLp{T1,T2}
       error("λ must be a real scalar or array")
     end
 
+    if p ≠ context.p
+      error("p in NormLp must be equal to the context p")
+    end
+    if context.h_symb ≠ :lp
+      error("h_symb in NormLp must be :lp")
+    end
+
     p >= 1 || error("p must be greater than or equal to one")
     new{T1,T2}(λ, p, context)
   end
 end
+
 
 """
     prox!(y, h::NormLp, q, ν)
@@ -609,6 +657,14 @@ mutable struct NormTVp{T1,T2}
       error("λ must be a real scalar or array")
     end
 
+    if p ≠ context.p
+      error("p in NormTVp must be equal to the context p")
+    end
+
+    if context.h_symb ≠ :tvp
+      error("h_symb in NormTVp must be :tvp")
+    end
+
     p >= 1 || error("p must be greater than or equal to one")
     new{T1,T2}(λ, p, context)
   end
@@ -626,13 +682,21 @@ Computes the TVp norm of vector x with parameter p.
 # Returns
 The TVp norm value: (∑ᵢ |xᵢ₊₁ - xᵢ|ᵖ)^(1/p)
 """
-function TVp_norm(x::AbstractArray, p::Real)
+@inline function TVp_norm(x::AbstractArray, p::Float64)
   n = length(x)
-  tvp_sum = 0.0
-  for i = 1:(n-1)
-    tvp_sum += abs(x[i+1] - x[i])^p
+  s = 0.0
+  @inbounds @simd for i = 1:(n-1)
+    s += abs(x[i+1] - x[i])^p
   end
-  return tvp_sum^(1 / p)
+  return s^(1 / p)
+end
+
+@inline function TVp_norm(x::AbstractArray, n::Int, p::Float64)
+  s = 0.0
+  @inbounds @simd for i = 1:(n-1)
+    s += abs(x[i+1] - x[i])^p
+  end
+  return s^(1 / p)
 end
 
 """
@@ -904,8 +968,22 @@ Updates the context of an InexactShiftedProximableFunction object before calling
 - `solver`: solver object
 - `ψ`: InexactShiftedProximableFunction object
 """
-function update_prox_context!(solver, stats, ψ::InexactShiftedProximableFunction)
-  update_prox_context!(solver, stats, ψ, Val(typeof(ψ)))
+# function update_prox_context!(solver, stats, ψ::InexactShiftedProximableFunction)
+#   update_prox_context!(solver, stats, ψ, Val(typeof(ψ)))
+# end
+
+"""
+    update_prox_context!(solver, stats, ψ::ShiftedProximableFunction)
+
+No update is needed for ShiftedProximableFunction objects.
+
+# Arguments
+- `solver`: solver object
+- `stats`: stats object
+- `ψ`: ShiftedProximableFunction object
+"""
+function update_prox_context!(solver, stats, ψ::ShiftedProximableFunction)
+  return
 end
 
 """
@@ -919,11 +997,11 @@ Updates the context of a ShiftedNormLp object before calling prox!.
 - `ψ`: ShiftedNormLp object
 - `T`: Type of the object
 """
-function update_prox_context!(solver, stats, ψ, T::Val{<:ShiftedNormLp})
+function update_prox_context!(solver, stats, ψ::ShiftedNormLp)
   ψ.h.context.hk = stats.solver_specific[:nonsmooth_obj]
-  ψ.h.context.mk.∇f = solver.∇fk
-  ψ.h.context.mk.ψ = d -> ψ(d)  # Use the evaluation function of ψ instead of the object itself
+  copy!(ψ.h.context.∇fk, solver.∇fk)
   @. ψ.h.context.shift = ψ.xk + ψ.sj
+  return
 end
 
 """
@@ -936,9 +1014,9 @@ Updates the context of a ShiftedNormTVp object before calling prox!.
 - `ψ`: ShiftedNormTVp object
 - `T`: Type of the object
 """
-function update_prox_context!(solver, stats, ψ, T::Val{<:ShiftedNormTVp})
+function update_prox_context!(solver, stats, ψ::ShiftedNormTVp)
   ψ.h.context.hk = stats.solver_specific[:nonsmooth_obj]
-  ψ.h.context.mk.∇f = solver.∇fk
-  ψ.h.context.mk.ψ = d -> ψ(d)  # Use the evaluation function of ψ instead of the object itself
+  copy!(ψ.h.context.∇fk, solver.∇fk)
   @. ψ.h.context.shift = ψ.xk + ψ.sj
+  return
 end
