@@ -139,9 +139,6 @@ function default_proxTV_callback_Lp(
 
 end
 
-
-
-
 """
     default_proxTV_callback_v2(s_ptr::Ptr{Cdouble}, s_length::Csize_t, delta_k::Cdouble, ctx_ptr::Ptr{Cvoid})::Cint
 
@@ -373,28 +370,28 @@ end
 ### NormLp and ShiftedNormLp Implementation
 
 """
-    NormLp{T1,T2}
+    NormLp{T1,T2,C}
 
 Structure representing the Lp norm with parameter p and scaling factor λ.
 
 # Fields
 - `λ::T1`: scaling factor (scalar or array)
 - `p::T2`: norm parameter (≥ 1)
-- `context::ProxTVContext`: context for proximal computations
+- `context::C`: context for proximal computations
 
 # Constructor
-    NormLp(λ::T1, p::T2, context::ProxTVContext) where {T1,T2}
+    NormLp(λ::T1, p::T2, context::C) where {T1,T2,C}
 
 # Exceptions
 - `ArgumentError` if λ < 0 (scalar) or if any element of λ is negative (array)
 - `ArgumentError` if p < 1
 """
-mutable struct NormLp{T1,T2}
+mutable struct NormLp{T1,T2,C}
   λ::T1
   p::T2
-  context::ProxTVContext
+  context::C
 
-  function NormLp(λ::T1, p::T2, context::ProxTVContext) where {T1,T2}
+  function NormLp(λ::T1, p::T2, context::C) where {T1,T2,C}
     if λ isa Real
       λ < 0 && error("λ must be nonnegative")
     elseif λ isa AbstractArray
@@ -412,7 +409,7 @@ mutable struct NormLp{T1,T2}
     end
 
     p >= 1 || error("p must be greater than or equal to one")
-    new{T1,T2}(λ, p, context)
+    new{T1,T2,C}(λ, p, context)
   end
 end
 
@@ -500,11 +497,12 @@ The context is accessible via `h.context`
 mutable struct ShiftedNormLp{
   R<:Real,
   T<:Real,
+  C<:ProxTVContext,
   V0<:AbstractVector{R},
   V1<:AbstractVector{R},
   V2<:AbstractVector{R},
 } <: InexactShiftedProximableFunction
-  h::NormLp{R,T}
+  h::NormLp{R,T,C}
   xk::V0
   sj::V1
   sol::V2
@@ -512,14 +510,14 @@ mutable struct ShiftedNormLp{
   xsy::V2
 
   function ShiftedNormLp(
-    h::NormLp{R,T},
+    h::NormLp{R,T,C},
     xk::AbstractVector{R},
     sj::AbstractVector{R},
     shifted_twice::Bool,
-  ) where {R<:Real,T<:Real}
+  ) where {R<:Real,T<:Real,C<:ProxTVContext}
     sol = similar(xk)
     xsy = similar(xk)
-    new{R,T,typeof(xk),typeof(sj),typeof(sol)}(h, xk, sj, sol, shifted_twice, xsy)
+    new{R,T,C,typeof(xk),typeof(sj),typeof(sol)}(h, xk, sj, sol, shifted_twice, xsy)
   end
 end
 
@@ -535,7 +533,7 @@ Creates a ShiftedNormLp object with initial shift xk.
 # Returns
 A new ShiftedNormLp object
 """
-shifted(h::NormLp{R,T}, xk::AbstractVector{R}) where {R<:Real,T<:Real} =
+shifted(h::NormLp{R,T,C}, xk::AbstractVector{R}) where {R<:Real,T<:Real,C<:ProxTVContext} =
   ShiftedNormLp(h, xk, zero(xk), false)
 
 """
@@ -551,7 +549,7 @@ Creates a new ShiftedNormLp object by adding a second shift sj.
 A new ShiftedNormLp object with both shifts
 """
 shifted(
-  ψ::ShiftedNormLp{R,T,V0,V1,V2},
+  ψ::ShiftedNormLp{R,T,C,V0,V1,V2},
   sj::AbstractVector{R},
 ) where {
   R<:Real,
@@ -559,6 +557,7 @@ shifted(
   V0<:AbstractVector{R},
   V1<:AbstractVector{R},
   V2<:AbstractVector{R},
+  C<:ProxTVContext,
 } = ShiftedNormLp(ψ.h, ψ.xk, sj, true)
 
 """
@@ -660,7 +659,7 @@ end
 ### NormTVp and ShiftedNormTVp Implementation
 
 """
-    NormTVp{T1,T2}
+    NormTVp{T1,T2,C}
 
 Structure representing the Total Variation (TV) norm with parameter p and scaling factor λ.
 
@@ -676,12 +675,12 @@ Structure representing the Total Variation (TV) norm with parameter p and scalin
 - `ArgumentError` if λ < 0 (scalar) or if any element of λ is negative (array)
 - `ArgumentError` if p < 1
 """
-mutable struct NormTVp{T1,T2}
+mutable struct NormTVp{T1,T2,C}
   λ::T1
   p::T2
-  context::ProxTVContext
+  context::C
 
-  function NormTVp(λ::T1, p::T2, context::ProxTVContext) where {T1,T2}
+  function NormTVp(λ::T1, p::T2, context::C) where {T1,T2,C}
     if λ isa Real
       λ < 0 && error("λ must be nonnegative")
     elseif λ isa AbstractArray
@@ -700,7 +699,7 @@ mutable struct NormTVp{T1,T2}
     end
 
     p >= 1 || error("p must be greater than or equal to one")
-    new{T1,T2}(λ, p, context)
+    new{T1,T2,C}(λ, p, context)
   end
 end
 
@@ -744,7 +743,7 @@ end
 Structure representing a shifted TV norm.
 
 # Fields
-- `h::NormTVp{R,T}`: underlying TV norm
+- `h::NormTVp{R,T,C}`: underlying TV norm
 - `xk::V0`: first shift
 - `sj::V1`: second shift
 - `sol::V2`: temporary solution
@@ -757,25 +756,27 @@ The context is accessible via `h.context`
 mutable struct ShiftedNormTVp{
   R<:Real,
   T<:Real,
+  C<:ProxTVContext,
   V0<:AbstractVector{R},
   V1<:AbstractVector{R},
   V2<:AbstractVector{R},
 } <: InexactShiftedProximableFunction
-  h::NormTVp{R,T}
+  h::NormTVp{R,T,C}
   xk::V0
   sj::V1
   sol::V2
   shifted_twice::Bool
   xsy::V2
+
   function ShiftedNormTVp(
-    h::NormTVp{R,T},
+    h::NormTVp{R,T,C},
     xk::AbstractVector{R},
     sj::AbstractVector{R},
     shifted_twice::Bool,
-  ) where {R<:Real,T<:Real}
+  ) where {R<:Real,T<:Real,C<:ProxTVContext}
     sol = similar(xk)
     xsy = similar(xk)
-    new{R,T,typeof(xk),typeof(sj),typeof(sol)}(h, xk, sj, sol, shifted_twice, xsy)
+    new{R,T,C,typeof(xk),typeof(sj),typeof(sol)}(h, xk, sj, sol, shifted_twice, xsy)
   end
 end
 
@@ -791,7 +792,7 @@ Creates a ShiftedNormTVp object with initial shift xk.
 # Returns
 A new ShiftedNormTVp object
 """
-shifted(h::NormTVp{R,T}, xk::AbstractVector{R}) where {R<:Real,T<:Real} =
+shifted(h::NormTVp{R,T,C}, xk::AbstractVector{R}) where {R<:Real,T<:Real,C<:ProxTVContext} =
   ShiftedNormTVp(h, xk, zero(xk), false)
 
 """
@@ -807,7 +808,7 @@ Creates a new ShiftedNormTVp object by adding a second shift sj.
 A new ShiftedNormTVp object with both shifts
 """
 shifted(
-  ψ::ShiftedNormTVp{R,T,V0,V1,V2},
+  ψ::ShiftedNormTVp{R,T,C,V0,V1,V2},
   sj::AbstractVector{R},
 ) where {
   R<:Real,
@@ -815,6 +816,7 @@ shifted(
   V0<:AbstractVector{R},
   V1<:AbstractVector{R},
   V2<:AbstractVector{R},
+  C<:ProxTVContext,
 } = ShiftedNormTVp(ψ.h, ψ.xk, sj, true)
 
 """
