@@ -6,7 +6,8 @@ Used for functions that require iterative computation of their proximal operator
 """
 abstract type InexactShiftedProximableFunction end
 
-export default_proxTV_callback
+export default_proxTV_callback_TVp
+export default_proxTV_callback_Lp
 export default_proxTV_callback_v2
 export default_proxTV_callback_v3
 
@@ -72,14 +73,14 @@ the duality gap and the model decrease.
 The stopping criterion is: δₖ ≤ ((1-κξ)/κξ) * ξₖ
 where ξₖ is the model decrease at iteration k
 """
-function default_proxTV_callback(
+function default_proxTV_callback_TVp(
   s_ptr::Ptr{Cdouble},
   s_length::Csize_t,
   delta_k::Cdouble,
   ctx_ptr::Ptr{Cvoid},
 )::Cint
 
-  context = unsafe_pointer_to_objref(ctx_ptr)::ProxTVContext
+  context = unsafe_pointer_to_objref(ctx_ptr)::ProxTVContext{typeof(TVp_norm)}
   @inbounds for i = 1:s_length
     context.s_k[i] = unsafe_load(s_ptr, i)
   end
@@ -89,28 +90,56 @@ function default_proxTV_callback(
 
   n = Int(s_length)
 
-  ψ_val::Float64 = 0.0  # annotation stricte pour éviter tout boxing
-  if context.h_symb == :lp
-    ψ_val = LPnorm(context.s_k, n, context.p)
-  elseif context.h_symb == :tvp
-    ψ_val = TVp_norm(context.s_k, n, context.p)
-  end
-
-  ϕ_val::Float64 = 0.0  # annotation stricte pour éviter tout boxing
-  ϕ_val = dot(context.∇fk, context.s_k_unshifted)
+  ψ_val::Float64 = TVp_norm(context.s_k, n, context.p)
+  ϕ_val::Float64 = dot(context.∇fk, context.s_k_unshifted)
   mks = ϕ_val + ψ_val
 
-  local_hk = context.hk::Float64
-  local_κξ = context.κξ::Float64
+  hk = context.hk::Float64
+  κξ = context.κξ::Float64
+  ξk::Float64 = hk - mks
+  ratio::Float64 = (1.0 - κξ) / κξ
+  condition::Bool = delta_k ≤ ratio * ξk
 
-  let
-    local_mks = mks::Float64
-    ξk::Float64 = local_hk - local_mks
-    ratio::Float64 = (1.0 - local_κξ) / local_κξ
-    condition::Bool = delta_k ≤ ratio * ξk
-    return condition ? Int32(1) : Int32(0)
-  end
+  return condition ? Int32(1) : Int32(0)
 end
+
+"""
+    default_proxTV_callback_Lp(s_ptr::Ptr{Cdouble}, s_length::Csize_t, delta_k::Cdouble, ctx_ptr::Ptr{Cvoid})::Cint
+
+Default callback function for ProxTV algorithm for Lp norm.
+"""
+function default_proxTV_callback_Lp(
+  s_ptr::Ptr{Cdouble},
+  s_length::Csize_t,
+  delta_k::Cdouble,
+  ctx_ptr::Ptr{Cvoid},
+)::Cint
+
+  context = unsafe_pointer_to_objref(ctx_ptr)::ProxTVContext{typeof(LPnorm)}
+  @inbounds for i = 1:s_length
+    context.s_k[i] = unsafe_load(s_ptr, i)
+  end
+
+  # In-place operation to avoid memory allocations
+  @. context.s_k_unshifted = context.s_k - context.shift
+
+  n = Int(s_length)
+
+  ψ_val::Float64 = LPnorm(context.s_k, n, context.p::Float64)
+  ϕ_val::Float64 = dot(context.∇fk, context.s_k_unshifted)
+  mks = ϕ_val + ψ_val
+
+  hk = context.hk::Float64
+  κξ = context.κξ::Float64
+  ξk::Float64 = hk - mks
+  ratio::Float64 = (1.0 - κξ) / κξ
+  condition::Bool = delta_k ≤ ratio * ξk
+
+  return condition ? Int32(1) : Int32(0)
+
+end
+
+
 
 
 """
@@ -283,14 +312,7 @@ mutable struct ProxTVContext{F}
 end
 
 # Constructeur externe
-function ProxTVContext(
-  n::Int,
-  h_symb::Symbol,
-  p::Real;
-  κξ = 0.75,
-  dualGap = 0.0,
-  callback::Function = default_proxTV_callback,
-)
+function ProxTVContext(n::Int, h_symb::Symbol, p::Real; κξ = 0.75, dualGap = 0.0)
   # Vérification des paramètres
   n <= 0 && throw(ArgumentError("number of variables must be positive"))
   (κξ <= 1 / 2 || κξ >= 1) && throw(ArgumentError("κξ must be strictly between 1/2 and 1"))
@@ -312,9 +334,21 @@ function ProxTVContext(
   prox_stats = zeros(Int64, 3)
   s_k = zeros(Float64, n)
 
-  # Convert the Julia callback function to a C function pointer
-  callback_pointer =
-    @cfunction(default_proxTV_callback, Cint, (Ptr{Cdouble}, Csize_t, Cdouble, Ptr{Cvoid}))
+  if h_symb == :tvp
+    callback_pointer = @cfunction(
+      default_proxTV_callback_TVp,
+      Cint,
+      (Ptr{Cdouble}, Csize_t, Cdouble, Ptr{Cvoid})
+    )
+  elseif h_symb == :lp
+    callback_pointer = @cfunction(
+      default_proxTV_callback_Lp,
+      Cint,
+      (Ptr{Cdouble}, Csize_t, Cdouble, Ptr{Cvoid})
+    )
+  else
+    error("h_symb must be :tvp or :lp")
+  end
 
   return ProxTVContext{typeof(h_fun)}(
     hk,
@@ -443,7 +477,7 @@ end
 
 Evaluate the Lp norm at point x, scaled by λ.
 """
-function (h::NormLp)(x::AbstractArray)
+function (h::NormLp)(x::AbstractVector{Float64})
   return h.λ * LPnorm(x, length(x), h.p)
 end
 
@@ -671,7 +705,7 @@ mutable struct NormTVp{T1,T2}
 end
 
 """
-    TVp_norm(x::AbstractArray, p::Real)
+    TVp_norm(x::AbstractVector{Float64}, p::Real)
 
 Computes the TVp norm of vector x with parameter p.
 
@@ -682,16 +716,12 @@ Computes the TVp norm of vector x with parameter p.
 # Returns
 The TVp norm value: (∑ᵢ |xᵢ₊₁ - xᵢ|ᵖ)^(1/p)
 """
-@inline function TVp_norm(x::AbstractArray, p::Float64)
+@inline function TVp_norm(x::AbstractVector{Float64}, p::Float64)
   n = length(x)
-  s = 0.0
-  @inbounds @simd for i = 1:(n-1)
-    s += abs(x[i+1] - x[i])^p
-  end
-  return s^(1 / p)
+  return TVp_norm(x, n, p)
 end
 
-@inline function TVp_norm(x::AbstractArray, n::Int, p::Float64)
+@inline function TVp_norm(x::AbstractVector{Float64}, n::Int, p::Float64)
   s = 0.0
   @inbounds @simd for i = 1:(n-1)
     s += abs(x[i+1] - x[i])^p

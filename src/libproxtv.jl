@@ -2,7 +2,12 @@
 
 using proxTV_jll
 
-function LPnorm(x, n, p)
+@inline function LPnorm(x, p)
+  n = length(x)
+  return LPnorm(x, n, p)
+end
+
+@inline function LPnorm(x, n, p)
   @ccall libproxtv.LPnorm(x::Ptr{Float64}, n::Int32, p::Float64)::Float64
 end
 
