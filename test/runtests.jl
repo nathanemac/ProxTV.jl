@@ -36,12 +36,16 @@ end
     positive = Int32(0)
     dualGap = 1e-4
 
-    ctx = ProxTVContext(n)
+    ctx = ProxTVContext(n, :lp, 1.7)
 
     callback_pointer =
       @cfunction(simple_callback, Cint, (Ptr{Cdouble}, Csize_t, Cdouble, Ptr{Cvoid}))
     @test PN_LPp(y, lambda, x, info, n, p, ws, positive, ctx, callback_pointer) == 1 # 1 is the expected return value of the function. This means that the function has been executed successfully.
 
     @test TV(y, lambda, x, info, n, p, ws, ctx, callback_pointer) == 1
+  end
+
+  @testset "JSO Solvers" begin
+    # TODO add tests on R2N/iR2N and iR2/R2 once RegOpt is merged
   end
 end

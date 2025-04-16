@@ -6,57 +6,22 @@ Used for functions that require iterative computation of their proximal operator
 """
 abstract type InexactShiftedProximableFunction end
 
-export default_proxTV_callback
+export default_proxTV_callback_TVp
+export default_proxTV_callback_Lp
 export default_proxTV_callback_v2
 export default_proxTV_callback_v3
 
 export update_prox_context!
 
-# This is a helper struct to store the gradient and the proximal term in a compact way.
-# It is used to avoid memory allocations when calling the proximal callback.
 """
-    ModelFunction{V,P}
+    default_proxTV_callback_TVp(s_ptr::Ptr{Cdouble}, s_length::Csize_t, delta_k::Cdouble, ctx_ptr::Ptr{Cvoid})::Cint
 
-Helper structure to store the gradient and proximal term in a compact way.
-Used to avoid memory allocations when calling the proximal callback.
-
-# Fields
-- `∇f::V`: gradient of the function
-- `ψ::P`: proximal term
-"""
-mutable struct ModelFunction{V,P}
-  ∇f::V  # gradient
-  ψ::P   # proximal term
-end
-
-# define function that creates the structure ModelFunction
-"""
-    ModelFunction(∇f::V, ψ::Function) where {V<:AbstractVector}
-
-Constructor for ModelFunction that creates a structure with a gradient vector and a proximal function.
-"""
-function ModelFunction(∇f::V, ψ::Function) where {V<:AbstractVector}
-  return ModelFunction{V,Function}(∇f, ψ)
-end
-
-"""
-    (m::ModelFunction)(d)
-
-Evaluate the model function at point d by computing the sum of:
-1. The inner product between the gradient and d
-2. The proximal term evaluated at d
-"""
-function (m::ModelFunction)(d)
-  return dot(m.∇f, d) + m.ψ(d)
-end
-
-### C++ callback functions
-
-"""
-    default_proxTV_callback(s_ptr::Ptr{Cdouble}, s_length::Csize_t, delta_k::Cdouble, ctx_ptr::Ptr{Cvoid})::Cint
-
-Default callback function for ProxTV algorithm. Implements the stopping criterion based on the ratio between
-the duality gap and the model decrease.
+Default callback function used in ProxTV.jl for the TVp norm. Implements the stopping criterion based on the ratio between
+the current duality gap δₖ and the model decrease ξₖ:
+```
+δₖ ≤ ((1-κξ)/κξ) * ξₖ
+```
+where κξ is a parameter between 1/2 and 1 that controls the precision of the proximal operator.
 
 # Arguments
 - `s_ptr`: Pointer to the current solution
@@ -69,32 +34,47 @@ the duality gap and the model decrease.
 - `Int32(0)` otherwise
 
 # Note
-The stopping criterion is: δₖ ≤ ((1-κξ)/κξ) * ξₖ
-where ξₖ is the model decrease at iteration k
+This function is optimized for ProxTV.jl. It is not intended to be used directly.
+If the user wants to use a different function, it should be implemented with care.
 """
-function default_proxTV_callback(
+function default_proxTV_callback_TVp(
   s_ptr::Ptr{Cdouble},
   s_length::Csize_t,
   delta_k::Cdouble,
   ctx_ptr::Ptr{Cvoid},
 )::Cint
-  s_k = unsafe_wrap(Vector{Float64}, s_ptr, s_length; own = false)
-  context = unsafe_pointer_to_objref(ctx_ptr)::ProxTVContext
 
-  # In-place operation to avoid memory allocations
-  @. context.s_k_unshifted = s_k - context.shift
+  context = unsafe_pointer_to_objref(ctx_ptr)::ProxTVContext{typeof(TVp_norm)}
+  @inbounds for i = 1:s_length
+    context.s_k[i] = unsafe_load(s_ptr, i)
+  end
 
-  # Computations without allocations
-  ξk = context.hk - context.mk(context.s_k_unshifted) + max(1, abs(context.hk)) * 10 * eps()
-  condition = delta_k ≤ (1 - context.κξ) / context.κξ * ξk
+  @. context.s_k_unshifted = context.s_k - context.shift
+  n = Int(s_length)
+
+  ψ_val::Float64 = TVp_norm(context.s_k, n, context.p)
+  ϕ_val::Float64 = dot(context.∇fk, context.s_k_unshifted)
+  mks = ϕ_val + ψ_val
+
+  hk = context.hk::Float64
+  κξ = context.κξ::Float64
+  ξk::Float64 = hk - mks
+  ratio::Float64 = (1.0 - κξ) / κξ
+  condition::Bool = delta_k ≤ ratio * ξk
+
   return condition ? Int32(1) : Int32(0)
 end
 
-"""
-    default_proxTV_callback_v2(s_ptr::Ptr{Cdouble}, s_length::Csize_t, delta_k::Cdouble, ctx_ptr::Ptr{Cvoid})::Cint
 
-Alternative callback function for ProxTV algorithm. Uses a fixed duality gap threshold from the context
-and ensures the model decrease is non-negative.
+"""
+    default_proxTV_callback_Lp(s_ptr::Ptr{Cdouble}, s_length::Csize_t, delta_k::Cdouble, ctx_ptr::Ptr{Cvoid})::Cint
+
+Default callback function used in ProxTV.jl for the Lp norm. Implements the stopping criterion based on the ratio between
+the current duality gap δₖ and the model decrease ξₖ:
+```
+δₖ ≤ ((1-κξ)/κξ) * ξₖ
+```
+where κξ is a parameter between 1/2 and 1 that controls the precision of the proximal operator.
 
 # Arguments
 - `s_ptr`: Pointer to the current solution
@@ -107,73 +87,87 @@ and ensures the model decrease is non-negative.
 - `Int32(0)` otherwise
 
 # Note
-The stopping criterion is: (δₖ ≤ dualGap) && (ξₖ ≥ 0)
-where dualGap is fixed in the context
+This function is optimized for ProxTV.jl. It is not intended to be used directly.
+If the user wants to use a different function, it should be implemented with care.
 """
+function default_proxTV_callback_Lp(
+  s_ptr::Ptr{Cdouble},
+  s_length::Csize_t,
+  delta_k::Cdouble,
+  ctx_ptr::Ptr{Cvoid},
+)::Cint
+
+  context = unsafe_pointer_to_objref(ctx_ptr)::ProxTVContext{typeof(LPnorm)}
+  @inbounds for i = 1:s_length
+    context.s_k[i] = unsafe_load(s_ptr, i)
+  end
+
+  @. context.s_k_unshifted = context.s_k - context.shift
+  n = Int(s_length)
+
+  ψ_val::Float64 = LPnorm(context.s_k, n, context.p::Float64)
+  ϕ_val::Float64 = dot(context.∇fk, context.s_k_unshifted)
+  mks = ϕ_val + ψ_val
+
+  hk = context.hk::Float64
+  κξ = context.κξ::Float64
+  ξk::Float64 = hk - mks
+  ratio::Float64 = (1.0 - κξ) / κξ
+  condition::Bool = delta_k ≤ ratio * ξk
+
+  return condition ? Int32(1) : Int32(0)
+
+end
+
 function default_proxTV_callback_v2(
   s_ptr::Ptr{Cdouble},
   s_length::Csize_t,
   delta_k::Cdouble,
   ctx_ptr::Ptr{Cvoid},
 )::Cint
-  s_k = unsafe_wrap(Vector{Float64}, s_ptr, s_length; own = false)
-  context = unsafe_pointer_to_objref(ctx_ptr)::ProxTVContext
 
-  # In-place operation to avoid memory allocations
-  @. context.s_k_unshifted = s_k - context.shift
+  @error "default_proxTV_callback_v2 is deprecated. Use default_proxTV_callback_Lp or default_proxTV_callback_TVp instead."
+  # s_k = unsafe_wrap(Vector{Float64}, s_ptr, s_length; own = false)
+  # context = unsafe_pointer_to_objref(ctx_ptr)::ProxTVContext
 
-  # Computations without allocations
-  ξk = context.hk - context.mk(context.s_k_unshifted) + max(1, abs(context.hk)) * 10 * eps()
+  # # In-place operation to avoid memory allocations
+  # @. context.s_k_unshifted = s_k - context.shift
 
-  condition = (delta_k ≤ context.dualGap) && (ξk ≥ 0)
+  # # Computations without allocations
+  # ξk = context.hk - context.mk(context.s_k_unshifted) + max(1, abs(context.hk)) * 10 * eps()
 
-  return condition ? Int32(1) : Int32(0)
+  # condition = (delta_k ≤ context.dualGap) && (ξk ≥ 0)
+
+  # return condition ? Int32(1) : Int32(0)
 end
 
-"""
-    default_proxTV_callback_v3(s_ptr::Ptr{Cdouble}, s_length::Csize_t, delta_k::Cdouble, ctx_ptr::Ptr{Cvoid})::Cint
 
-Advanced callback function for ProxTV algorithm. Dynamically updates the duality gap threshold
-based on the model decrease while ensuring it remains non-negative.
-
-# Arguments
-- `s_ptr`: Pointer to the current solution
-- `s_length`: Length of the solution vector
-- `delta_k`: Current duality gap
-- `ctx_ptr`: Pointer to the ProxTVContext object
-
-# Returns
-- `Int32(1)` if the stopping criterion is satisfied
-- `Int32(0)` otherwise
-
-# Note
-The stopping criterion is: (δₖ ≤ dualGap) && (ξₖ ≥ 0)
-where dualGap is dynamically updated as: min(dualGap, ((1-κξ)/κξ) * ξₖ)
-"""
 function default_proxTV_callback_v3(
   s_ptr::Ptr{Cdouble},
   s_length::Csize_t,
   delta_k::Cdouble,
   ctx_ptr::Ptr{Cvoid},
 )::Cint
-  s_k = unsafe_wrap(Vector{Float64}, s_ptr, s_length; own = false)
-  context = unsafe_pointer_to_objref(ctx_ptr)::ProxTVContext
 
-  # In-place operation to avoid memory allocations
-  @. context.s_k_unshifted = s_k - context.shift
+  @error "default_proxTV_callback_v3 is deprecated. Use default_proxTV_callback_Lp or default_proxTV_callback_TVp instead."
+  # s_k = unsafe_wrap(Vector{Float64}, s_ptr, s_length; own = false)
+  # context = unsafe_pointer_to_objref(ctx_ptr)::ProxTVContext
 
-  # Computations without allocations
-  ξk = context.hk - context.mk(context.s_k_unshifted) + max(1, abs(context.hk)) * 10 * eps()
+  # # In-place operation to avoid memory allocations
+  # @. context.s_k_unshifted = s_k - context.shift
 
-  aux = (1 - context.κξ) / context.κξ * ξk
+  # # Computations without allocations
+  # ξk = context.hk - context.mk(context.s_k_unshifted) + max(1, abs(context.hk)) * 10 * eps()
 
-  if aux < context.dualGap && aux ≥ 0
-    context.dualGap = aux
-  end
+  # aux = (1 - context.κξ) / context.κξ * ξk
 
-  condition = (delta_k ≤ context.dualGap) && (ξk ≥ 0)
+  # if aux < context.dualGap && aux ≥ 0
+  #   context.dualGap = aux
+  # end
 
-  return condition ? Int32(1) : Int32(0)
+  # condition = (delta_k ≤ context.dualGap) && (ξk ≥ 0)
+
+  # return condition ? Int32(1) : Int32(0)
 end
 
 ## Structure for callback function in iR2/iR2N
@@ -185,8 +179,11 @@ and algorithm parameters.
 
 # Fields
 - `hk::Float64`: current step size
-- `mk::ModelFunction`: model function (gradient + proximal term)
-- `κξ::Float64`: control parameter between 1/2 and 1
+- `h_symb::Symbol`: symbol of h to evaluate in the callback
+- `∇fk::Vector{Float64}`: gradient of the function at the current point
+- `h_fun::F`: function handle for h
+- `p::Real`: parameter of the norm
+- `κξ::Float64`: control parameter for the stopping criterion
 - `shift::Vector{Float64}`: shift vector
 - `s_k_unshifted::Vector{Float64}`: current unshifted solution
 - `dualGap::Float64`: target duality gap
@@ -196,41 +193,50 @@ and algorithm parameters.
 - `temp_x::Vector{Float64}`: temporary vector for computations
 - `y_shifted::Vector{Float64}`: for shifted versions
 - `s::Vector{Float64}`: to store s = x - xk - sj
+- `s_k::Vector{Float64}`: to store s_k in the callback
 """
-mutable struct ProxTVContext
+mutable struct ProxTVContext{F}
   hk::Float64
-  mk::ModelFunction
+  h_symb::Symbol
+  ∇fk::Vector{Float64}
+  h_fun::F
+  p::Real
   κξ::Float64
   shift::Vector{Float64}
   s_k_unshifted::Vector{Float64}
   dualGap::Float64
-  prox_stats::Any  # for total number of iterations in ir2n, ir2 and prox
-  callback_pointer::Ptr{Cvoid}  # pointer to the C callback function
+  prox_stats::Vector{Int64}
+  callback_pointer::Ptr{Cvoid}
+  info::Vector{Float64}
+  temp_x::Vector{Float64}
+  y_shifted::Vector{Float64}
+  s::Vector{Float64}
+  s_k::Vector{Float64}
 
-  # Allocations for prox!
-  info::Vector{Float64}  # info array (3 elements)
-  temp_x::Vector{Float64}  # temporary vector for computations
-  y_shifted::Vector{Float64}  # for shifted versions
-  s::Vector{Float64}  # to store s = x - xk - sj
-
-  # Constructeur interne
-  function ProxTVContext(
+  function ProxTVContext{F}(
     hk::Float64,
-    mk::ModelFunction,
+    h_symb::Symbol,
+    ∇fk::Vector{Float64},
+    h_fun::F,
+    p::Real,
     κξ::Float64,
     shift::Vector{Float64},
     s_k_unshifted::Vector{Float64},
     dualGap::Float64,
-    prox_stats::Any,
+    prox_stats::Vector{Int64},
     callback_pointer::Ptr{Cvoid},
     info::Vector{Float64},
     temp_x::Vector{Float64},
     y_shifted::Vector{Float64},
     s::Vector{Float64},
-  )
-    ctx = new(
+    s_k::Vector{Float64},
+  ) where {F}
+    ctx = new{F}(
       hk,
-      mk,
+      h_symb,
+      ∇fk,
+      h_fun,
+      p,
       κξ,
       shift,
       s_k_unshifted,
@@ -241,40 +247,55 @@ mutable struct ProxTVContext
       temp_x,
       y_shifted,
       s,
+      s_k,
     )
     return ctx
   end
 end
 
-# Constructeur externe
-function ProxTVContext(
-  n::Int;
-  κξ = 3 / 4,
-  dualGap = 0.0,
-  callback::Function = default_proxTV_callback,
-)
-  # Vérification des paramètres
+function ProxTVContext(n::Int, h_symb::Symbol, p::Real; κξ = 0.75, dualGap = 0.0)
   n <= 0 && throw(ArgumentError("number of variables must be positive"))
   (κξ <= 1 / 2 || κξ >= 1) && throw(ArgumentError("κξ must be strictly between 1/2 and 1"))
   dualGap < 0 && throw(ArgumentError("dualGap must be nonnegative"))
-
+  p >= 1 || throw(ArgumentError("p must be greater than or equal to one"))
   shift = zeros(n)
   s_k_unshifted = zeros(n)
   hk = 0.0
-  mk = ModelFunction(zeros(n), x -> x)
+  ∇fk = similar(shift)
+  if h_symb == :lp
+    h_fun = LPnorm
+  elseif h_symb == :tvp
+    h_fun = TVp_norm
+  end
   info = zeros(Float64, 3)
   temp_x = zeros(Float64, n)
   y_shifted = zeros(Float64, n)
   s = zeros(Float64, n)
-  prox_stats = zeros(3)
+  prox_stats = zeros(Int64, 3)
+  s_k = zeros(Float64, n)
 
-  # Convert the Julia callback function to a C function pointer
-  callback_pointer =
-    @cfunction(default_proxTV_callback, Cint, (Ptr{Cdouble}, Csize_t, Cdouble, Ptr{Cvoid}))
+  if h_symb == :tvp
+    callback_pointer = @cfunction(
+      default_proxTV_callback_TVp,
+      Cint,
+      (Ptr{Cdouble}, Csize_t, Cdouble, Ptr{Cvoid})
+    )
+  elseif h_symb == :lp
+    callback_pointer = @cfunction(
+      default_proxTV_callback_Lp,
+      Cint,
+      (Ptr{Cdouble}, Csize_t, Cdouble, Ptr{Cvoid})
+    )
+  else
+    error("h_symb must be :tvp or :lp")
+  end
 
-  return ProxTVContext(
+  return ProxTVContext{typeof(h_fun)}(
     hk,
-    mk,
+    h_symb,
+    ∇fk,
+    h_fun,
+    p,
     κξ,
     shift,
     s_k_unshifted,
@@ -285,34 +306,38 @@ function ProxTVContext(
     temp_x,
     y_shifted,
     s,
+    s_k,
   )
 end
 
-### NormLp and ShiftedNormLp Implementation
 
 """
-    NormLp{T1,T2}
+    NormLp{T1,T2,C}
 
 Structure representing the Lp norm with parameter p and scaling factor λ.
 
 # Fields
 - `λ::T1`: scaling factor (scalar or array)
 - `p::T2`: norm parameter (≥ 1)
-- `context::ProxTVContext`: context for proximal computations
+- `context::C`: context for proximal computations
 
 # Constructor
-    NormLp(λ::T1, p::T2, context::ProxTVContext) where {T1,T2}
+    NormLp(λ::T1, p::T2, context::C) where {T1,T2,C}
 
 # Exceptions
 - `ArgumentError` if λ < 0 (scalar) or if any element of λ is negative (array)
 - `ArgumentError` if p < 1
+
+# Note
+This is not the most efficient way to define the Lp norm.
+Instead, see `NormLp(λ::T1, p::T2, n::Int)` to avoid defining the context.
 """
-mutable struct NormLp{T1,T2}
+mutable struct NormLp{T1,T2,C}
   λ::T1
   p::T2
-  context::ProxTVContext
+  context::C
 
-  function NormLp(λ::T1, p::T2, context::ProxTVContext) where {T1,T2}
+  function NormLp(λ::T1, p::T2, context::C) where {T1,T2,C}
     if λ isa Real
       λ < 0 && error("λ must be nonnegative")
     elseif λ isa AbstractArray
@@ -322,10 +347,30 @@ mutable struct NormLp{T1,T2}
       error("λ must be a real scalar or array")
     end
 
+    if p ≠ context.p
+      error("p in NormLp must be equal to the context p")
+    end
+    if context.h_symb ≠ :lp
+      error("h_symb in NormLp must be :lp")
+    end
+
     p >= 1 || error("p must be greater than or equal to one")
-    new{T1,T2}(λ, p, context)
+    new{T1,T2,C}(λ, p, context)
   end
 end
+
+
+"""
+    NormLp(λ::T1, p::T2, n::Int) where {T1,T2}
+
+Construct an Lp norm structure with parameter p and scaling factor λ.
+The context is automatically defined.
+"""
+function NormLp(λ::T1, p::T2, n::Int) where {T1,T2}
+  context = ProxTVContext(n, :lp, p)
+  return NormLp(λ, p, context)
+end
+
 
 """
     prox!(y, h::NormLp, q, ν)
@@ -339,7 +384,7 @@ Evaluates the proximity operator of an Lp norm.
 - `ν`: Scaling factor
 
 # Note
-The duality gap at the solution is guaranteed to be less than `h.context.dualGap`
+The quality of the proximal operator depends on κξ and the callback function, see `default_proxTV_callback_Lp`.
 """
 function prox!(y::AbstractArray, h::NormLp, q::AbstractArray, ν::Real)
   n = length(y)
@@ -373,11 +418,10 @@ function prox!(y::AbstractArray, h::NormLp, q::AbstractArray, ν::Real)
     )
 
     # add the number of iterations in prox to the context object
-    h.context.prox_stats[3] += info[1]
+    h.context.prox_stats[3] += Int64(info[1])
 
     return y
   finally
-    # Always free the workspace
     freeWorkspace(ws)
   end
 end
@@ -387,34 +431,32 @@ end
 
 Evaluate the Lp norm at point x, scaled by λ.
 """
-function (h::NormLp)(x::AbstractArray)
+function (h::NormLp)(x::AbstractVector{Float64})
   return h.λ * LPnorm(x, length(x), h.p)
 end
 
 """
-    ShiftedNormLp{R,T,V0,V1,V2}
+    ShiftedNormLp{R,T,C,V0,V1,V2}
 
 Structure representing a shifted Lp norm.
 
 # Fields
-- `h::NormLp{R,T}`: underlying Lp norm
+- `h::NormLp{R,T,C}`: underlying Lp norm
 - `xk::V0`: first shift
 - `sj::V1`: second shift
 - `sol::V2`: temporary solution
 - `shifted_twice::Bool`: indicates if a second shift has been applied
 - `xsy::V2`: temporary vector for computations
-
-# Note
-The context is accessible via `h.context`
 """
 mutable struct ShiftedNormLp{
   R<:Real,
   T<:Real,
+  C<:ProxTVContext,
   V0<:AbstractVector{R},
   V1<:AbstractVector{R},
   V2<:AbstractVector{R},
 } <: InexactShiftedProximableFunction
-  h::NormLp{R,T}
+  h::NormLp{R,T,C}
   xk::V0
   sj::V1
   sol::V2
@@ -422,14 +464,14 @@ mutable struct ShiftedNormLp{
   xsy::V2
 
   function ShiftedNormLp(
-    h::NormLp{R,T},
+    h::NormLp{R,T,C},
     xk::AbstractVector{R},
     sj::AbstractVector{R},
     shifted_twice::Bool,
-  ) where {R<:Real,T<:Real}
+  ) where {R<:Real,T<:Real,C<:ProxTVContext}
     sol = similar(xk)
     xsy = similar(xk)
-    new{R,T,typeof(xk),typeof(sj),typeof(sol)}(h, xk, sj, sol, shifted_twice, xsy)
+    new{R,T,C,typeof(xk),typeof(sj),typeof(sol)}(h, xk, sj, sol, shifted_twice, xsy)
   end
 end
 
@@ -445,7 +487,7 @@ Creates a ShiftedNormLp object with initial shift xk.
 # Returns
 A new ShiftedNormLp object
 """
-shifted(h::NormLp{R,T}, xk::AbstractVector{R}) where {R<:Real,T<:Real} =
+shifted(h::NormLp{R,T,C}, xk::AbstractVector{R}) where {R<:Real,T<:Real,C<:ProxTVContext} =
   ShiftedNormLp(h, xk, zero(xk), false)
 
 """
@@ -461,7 +503,7 @@ Creates a new ShiftedNormLp object by adding a second shift sj.
 A new ShiftedNormLp object with both shifts
 """
 shifted(
-  ψ::ShiftedNormLp{R,T,V0,V1,V2},
+  ψ::ShiftedNormLp{R,T,C,V0,V1,V2},
   sj::AbstractVector{R},
 ) where {
   R<:Real,
@@ -469,6 +511,7 @@ shifted(
   V0<:AbstractVector{R},
   V1<:AbstractVector{R},
   V2<:AbstractVector{R},
+  C<:ProxTVContext,
 } = ShiftedNormLp(ψ.h, ψ.xk, sj, true)
 
 """
@@ -480,7 +523,14 @@ Utility functions to get a string representation of the shifted Lp norm.
 """
 fun_name(ψ::ShiftedNormLp) = "shifted Lp norm"
 fun_expr(ψ::ShiftedNormLp) = "t ↦ λ * ‖xk + sj + t‖ₚ"
-fun_params(ψ::ShiftedNormLp) = "xk = $(ψ.xk)\n" * " "^14 * "sj = $(ψ.sj)"
+fun_params(ψ::ShiftedNormLp) =
+  "xk = $(ψ.xk)\n" *
+  " "^14 *
+  "sj = $(ψ.sj)\n" *
+  " "^14 *
+  "λ = $(ψ.h.λ)\n" *
+  " "^14 *
+  "p = $(ψ.h.p)"
 
 """
     (ψ::ShiftedNormLp)(y::AbstractVector)
@@ -504,7 +554,7 @@ Evaluates the proximity operator of a shifted Lp norm.
 - `ν`: Scaling factor
 
 # Note
-Uses the context from `ψ.h` for computations
+Uses the context from `ψ.h` for computations.
 """
 function prox!(y::AbstractArray, ψ::ShiftedNormLp, q::AbstractArray, ν::Real)
   n = length(y)
@@ -558,40 +608,42 @@ function prox!(y::AbstractArray, ψ::ShiftedNormLp, q::AbstractArray, ν::Real)
     y .= s
 
     # add the number of iterations in prox to the context object
-    context.prox_stats[3] += info[1]
+    context.prox_stats[3] += Int64(info[1])
 
     return y
   finally
-    # Always free the workspace
     freeWorkspace(ws)
   end
 end
 
-### NormTVp and ShiftedNormTVp Implementation
 
 """
-    NormTVp{T1,T2}
+    NormTVp{T1,T2,C}
 
 Structure representing the Total Variation (TV) norm with parameter p and scaling factor λ.
 
 # Fields
 - `λ::T1`: scaling factor (scalar or array)
 - `p::T2`: norm parameter (≥ 1)
-- `context::ProxTVContext`: context for proximal computations
+- `context::C`: context for proximal computations
 
 # Constructor
-    NormTVp(λ::T1, p::T2, context::ProxTVContext) where {T1,T2}
+    NormTVp(λ::T1, p::T2, context::C) where {T1,T2,C}
 
 # Exceptions
 - `ArgumentError` if λ < 0 (scalar) or if any element of λ is negative (array)
 - `ArgumentError` if p < 1
+
+# Note
+This is not the most efficient way to define the TVp norm.
+Instead, see `NormTVp(λ::T1, p::T2, n::Int)` to avoid defining the context.
 """
-mutable struct NormTVp{T1,T2}
+mutable struct NormTVp{T1,T2,C}
   λ::T1
   p::T2
-  context::ProxTVContext
+  context::C
 
-  function NormTVp(λ::T1, p::T2, context::ProxTVContext) where {T1,T2}
+  function NormTVp(λ::T1, p::T2, context::C) where {T1,T2,C}
     if λ isa Real
       λ < 0 && error("λ must be nonnegative")
     elseif λ isa AbstractArray
@@ -601,13 +653,32 @@ mutable struct NormTVp{T1,T2}
       error("λ must be a real scalar or array")
     end
 
+    if p ≠ context.p
+      error("p in NormTVp must be equal to the context p")
+    end
+
+    if context.h_symb ≠ :tvp
+      error("h_symb in NormTVp must be :tvp")
+    end
+
     p >= 1 || error("p must be greater than or equal to one")
-    new{T1,T2}(λ, p, context)
+    new{T1,T2,C}(λ, p, context)
   end
 end
 
 """
-    TVp_norm(x::AbstractArray, p::Real)
+    NormTVp(λ::T1, p::T2, n::Int) where {T1,T2}
+
+Construct a TVp norm structure with parameter p and scaling factor λ.
+The context is automatically defined.
+"""
+function NormTVp(λ::T1, p::T2, n::Int) where {T1,T2}
+  context = ProxTVContext(n, :tvp, p)
+  return NormTVp(λ, p, context)
+end
+
+"""
+    TVp_norm(x::AbstractVector{Float64}, p::Real)
 
 Computes the TVp norm of vector x with parameter p.
 
@@ -618,13 +689,17 @@ Computes the TVp norm of vector x with parameter p.
 # Returns
 The TVp norm value: (∑ᵢ |xᵢ₊₁ - xᵢ|ᵖ)^(1/p)
 """
-function TVp_norm(x::AbstractArray, p::Real)
+@inline function TVp_norm(x::AbstractVector{Float64}, p::Float64)
   n = length(x)
-  tvp_sum = 0.0
-  for i = 1:(n-1)
-    tvp_sum += abs(x[i+1] - x[i])^p
+  return TVp_norm(x, n, p)
+end
+
+@inline function TVp_norm(x::AbstractVector{Float64}, n::Int, p::Float64)
+  s = 0.0
+  @inbounds @simd for i = 1:(n-1)
+    s += abs(x[i+1] - x[i])^p
   end
-  return tvp_sum^(1 / p)
+  return s^(1 / p)
 end
 
 """
@@ -637,43 +712,42 @@ function (h::NormTVp)(x::AbstractArray)
 end
 
 """
-    ShiftedNormTVp{R,T,V0,V1,V2}
+    ShiftedNormTVp{R,T,C,V0,V1,V2}
 
-Structure representing a shifted TV norm.
+Structure representing a shifted TVp norm.
 
 # Fields
-- `h::NormTVp{R,T}`: underlying TV norm
+- `h::NormTVp{R,T,C}`: underlying TVp norm
 - `xk::V0`: first shift
 - `sj::V1`: second shift
 - `sol::V2`: temporary solution
 - `shifted_twice::Bool`: indicates if a second shift has been applied
 - `xsy::V2`: temporary vector for computations
-
-# Note
-The context is accessible via `h.context`
 """
 mutable struct ShiftedNormTVp{
   R<:Real,
   T<:Real,
+  C<:ProxTVContext,
   V0<:AbstractVector{R},
   V1<:AbstractVector{R},
   V2<:AbstractVector{R},
 } <: InexactShiftedProximableFunction
-  h::NormTVp{R,T}
+  h::NormTVp{R,T,C}
   xk::V0
   sj::V1
   sol::V2
   shifted_twice::Bool
   xsy::V2
+
   function ShiftedNormTVp(
-    h::NormTVp{R,T},
+    h::NormTVp{R,T,C},
     xk::AbstractVector{R},
     sj::AbstractVector{R},
     shifted_twice::Bool,
-  ) where {R<:Real,T<:Real}
+  ) where {R<:Real,T<:Real,C<:ProxTVContext}
     sol = similar(xk)
     xsy = similar(xk)
-    new{R,T,typeof(xk),typeof(sj),typeof(sol)}(h, xk, sj, sol, shifted_twice, xsy)
+    new{R,T,C,typeof(xk),typeof(sj),typeof(sol)}(h, xk, sj, sol, shifted_twice, xsy)
   end
 end
 
@@ -689,7 +763,7 @@ Creates a ShiftedNormTVp object with initial shift xk.
 # Returns
 A new ShiftedNormTVp object
 """
-shifted(h::NormTVp{R,T}, xk::AbstractVector{R}) where {R<:Real,T<:Real} =
+shifted(h::NormTVp{R,T,C}, xk::AbstractVector{R}) where {R<:Real,T<:Real,C<:ProxTVContext} =
   ShiftedNormTVp(h, xk, zero(xk), false)
 
 """
@@ -705,7 +779,7 @@ Creates a new ShiftedNormTVp object by adding a second shift sj.
 A new ShiftedNormTVp object with both shifts
 """
 shifted(
-  ψ::ShiftedNormTVp{R,T,V0,V1,V2},
+  ψ::ShiftedNormTVp{R,T,C,V0,V1,V2},
   sj::AbstractVector{R},
 ) where {
   R<:Real,
@@ -713,6 +787,7 @@ shifted(
   V0<:AbstractVector{R},
   V1<:AbstractVector{R},
   V2<:AbstractVector{R},
+  C<:ProxTVContext,
 } = ShiftedNormTVp(ψ.h, ψ.xk, sj, true)
 
 """
@@ -724,7 +799,14 @@ Utility functions to get a string representation of the shifted TV norm.
 """
 fun_name(ψ::ShiftedNormTVp) = "shifted TVp norm"
 fun_expr(ψ::ShiftedNormTVp) = "t ↦ λ * TVp(xk + sj + t)"
-fun_params(ψ::ShiftedNormTVp) = "xk = $(ψ.xk)\n" * " "^14 * "sj = $(ψ.sj)"
+fun_params(ψ::ShiftedNormTVp) =
+  "xk = $(ψ.xk)\n" *
+  " "^14 *
+  "sj = $(ψ.sj)\n" *
+  " "^14 *
+  "λ = $(ψ.h.λ)\n" *
+  " "^14 *
+  "p = $(ψ.h.p)"
 
 """
     (ψ::ShiftedNormTVp)(y::AbstractVector)
@@ -793,11 +875,10 @@ function prox!(y::AbstractArray, ψ::ShiftedNormTVp, q::AbstractArray, ν::Real)
     y .= s
 
     # add the number of iterations in prox to the context object
-    context.prox_stats[3] += info[1]
+    context.prox_stats[3] += Int64(info[1])
 
     return y
   finally
-    # Always free the workspace
     freeWorkspace(ws)
   end
 end
@@ -823,85 +904,23 @@ function shift!(ψ::Union{ShiftedNormLp,ShiftedNormTVp}, shift::Vector{R}) where
   return ψ
 end
 
-### general utility functions
 
 """
-    shifted(h::Union{NormLp, NormTVp}, xk::AbstractVector)
+    update_prox_context!(solver, stats, ψ::ShiftedProximableFunction)
 
-Creates a shifted version of a norm.
-
-# Arguments
-- `h`: norm to shift (either NormLp or NormTVp)
-- `xk`: shift vector
-
-# Returns
-- A ShiftedNormLp if h is NormLp
-- A ShiftedNormTVp if h is NormTVp
-
-# Throws
-- `ArgumentError` if h is neither NormLp nor NormTVp
-"""
-function shifted(h::Union{NormLp,NormTVp}, xk::AbstractVector)
-  if h isa NormLp
-    return ShiftedNormLp(h, xk, zero(xk), false)
-  elseif h isa NormTVp
-    return ShiftedNormTVp(h, xk, zero(xk), false)
-  else
-    throw(ArgumentError("The function h must be either NormLp or NormTVp"))
-  end
-end
-
-"""
-    prox!(y, ψ::Union{InexactShiftedProximableFunction, ShiftedProximableFunction}, q, ν)
-
-Evaluates the proximity operator of a shifted regularizer.
-
-# Arguments
-- `y`: Array in which to store the result
-- `ψ`: Either a ShiftedProximableFunction or an InexactShiftedProximableFunction
-- `q`: Vector to which the proximity operator is applied
-- `ν`: Scaling factor
-
-# Returns
-The solution is stored in the input vector `y`, which is also returned
-
-# Throws
-- `ErrorException` if ψ is neither ShiftedProximableFunction nor InexactShiftedProximableFunction
-"""
-function prox!(
-  y,
-  ψ::Union{InexactShiftedProximableFunction,ShiftedProximableFunction},
-  q,
-  ν,
-)
-  if ψ isa ShiftedProximableFunction
-    # Call to exact prox!()
-    return prox!(y, ψ, q, ν)
-  elseif ψ isa InexactShiftedProximableFunction
-    # Call to inexact prox!()
-    return prox!(y, ψ, q, ν)
-  else
-    error("Type $(typeof(ψ)) not supported")
-  end
-end
-
-### Update context before prox! call
-
-"""
-    update_prox_context!(solver, stats, ψ)
-
-Updates the context of an InexactShiftedProximableFunction object before calling prox!.
+No update is needed for ShiftedProximableFunction objects therefore this function is a no-op.
 
 # Arguments
 - `solver`: solver object
-- `ψ`: InexactShiftedProximableFunction object
+- `stats`: stats object
+- `ψ`: ShiftedProximableFunction object
 """
-function update_prox_context!(solver, stats, ψ::InexactShiftedProximableFunction)
-  update_prox_context!(solver, stats, ψ, Val(typeof(ψ)))
+function update_prox_context!(solver, stats, ψ::ShiftedProximableFunction)
+  return
 end
 
 """
-    update_prox_context!(solver, stats, ψ, T::Val{<:ShiftedNormLp})
+    update_prox_context!(solver, stats, ψ::ShiftedNormLp)
 
 Updates the context of a ShiftedNormLp object before calling prox!.
 
@@ -909,28 +928,27 @@ Updates the context of a ShiftedNormLp object before calling prox!.
 - `solver`: solver object
 - `stats`: stats object
 - `ψ`: ShiftedNormLp object
-- `T`: Type of the object
 """
-function update_prox_context!(solver, stats, ψ, T::Val{<:ShiftedNormLp})
+function update_prox_context!(solver, stats, ψ::ShiftedNormLp)
   ψ.h.context.hk = stats.solver_specific[:nonsmooth_obj]
-  ψ.h.context.mk.∇f = solver.∇fk
-  ψ.h.context.mk.ψ = d -> ψ(d)  # Use the evaluation function of ψ instead of the object itself
+  copy!(ψ.h.context.∇fk, solver.∇fk)
   @. ψ.h.context.shift = ψ.xk + ψ.sj
+  return
 end
 
 """
-    update_prox_context!(solver, ψ, T::Val{<:ShiftedNormTVp})
+    update_prox_context!(solver, stats, ψ::ShiftedNormTVp)
 
 Updates the context of a ShiftedNormTVp object before calling prox!.
 
 # Arguments
 - `solver`: solver object
+- `stats`: stats object
 - `ψ`: ShiftedNormTVp object
-- `T`: Type of the object
 """
-function update_prox_context!(solver, stats, ψ, T::Val{<:ShiftedNormTVp})
+function update_prox_context!(solver, stats, ψ::ShiftedNormTVp)
   ψ.h.context.hk = stats.solver_specific[:nonsmooth_obj]
-  ψ.h.context.mk.∇f = solver.∇fk
-  ψ.h.context.mk.ψ = d -> ψ(d)  # Use the evaluation function of ψ instead of the object itself
+  copy!(ψ.h.context.∇fk, solver.∇fk)
   @. ψ.h.context.shift = ψ.xk + ψ.sj
+  return
 end
