@@ -12,7 +12,7 @@ ShiftedProximalOperators = "d4fd37fa-580c-4e43-9b30-361c21aae263"
 proxTV_jll = "700117f8-5dbb-54dd-9908-6f3eb0e21f87"
 
 [compat]
-JuliaFormatter = "1"
+JuliaFormatter = "1, 2"
 LAPACK_jll = "3.12.0"
 LinearAlgebra = "1"
 OpenBLAS32_jll = "0.3.21"
