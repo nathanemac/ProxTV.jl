@@ -29,6 +29,6 @@ makedocs(
 
 deploydocs(
   repo = "github.com/nathanemac/ProxTV.jl",
-  devbranch = "main",
-  push_preview = false,  # désactive les previews
+  devbranch = "fix-docs",
+  push_preview = true,
 )
