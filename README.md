@@ -1,6 +1,6 @@
 # ProxTV
 
-[![Stable Documentation](https://img.shields.io/badge/docs-stable-blue.svg)](https://nathanemac.github.io/ProxTV.jl/stable)
+[![Documentation](https://img.shields.io/badge/docs-dev-blue.svg)](https://nathanemac.github.io/ProxTV.jl/dev)
 [![Build Status](https://github.com/nathanemac/ProxTV.jl/workflows/Test/badge.svg)](https://github.com/nathanemac/ProxTV.jl/actions)
 [![Test workflow status](https://github.com/nathanemac/ProxTV.jl/actions/workflows/Test.yml/badge.svg?branch=main)](https://github.com/nathanemac/ProxTV.jl/actions/workflows/Test.yml?query=branch%3Amain)
 [![Lint workflow Status](https://github.com/nathanemac/ProxTV.jl/actions/workflows/Lint.yml/badge.svg?branch=main)](https://github.com/nathanemac/ProxTV.jl/actions/workflows/Lint.yml?query=branch%3Amain)
@@ -42,7 +42,7 @@ p = 1.32 # inexact prox computation : no closed-form for p = 1.32
 ProxTV.TV(y, lambda, x, p)
 ```
 
-Comprehensive documentation and more examples can be found in the [online documentation](https://nathanemac.github.io/ProxTV.jl/stable).
+Comprehensive documentation and more examples can be found in the [online documentation](https://nathanemac.github.io/ProxTV.jl/dev).
 
 ## Features
 
@@ -54,12 +54,19 @@ Comprehensive documentation and more examples can be found in the [online docume
 
 ## Documentation
 
-The documentation includes:
+The documentation for ProxTV.jl is available at [https://nathanemac.github.io/ProxTV.jl/dev](https://nathanemac.github.io/ProxTV.jl/dev).
 
-- Getting Started guide
-- Detailed examples for various use cases
-- Complete API reference
-- Contributing guidelines
+To build the documentation locally:
+
+```bash
+# Build the documentation
+./build_docs.sh
+
+# Or build and serve it locally
+./serve_docs.sh
+```
+
+This will build the documentation and make it available in your browser.
 
 ## Tests
 

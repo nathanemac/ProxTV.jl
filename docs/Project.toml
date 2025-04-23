@@ -7,6 +7,8 @@ Documenter = "e30172f5-a6a5-5a46-863b-614d45cd2de4"
 LiveServer = "16fef848-5104-11e9-1b77-fb7a48bbb589"
 ProxTV = "925ea013-038b-5ab6-a1ab-e0849925e528"
 proxTV_jll = "700117f8-5dbb-54dd-9908-6f3eb0e21f87"
+LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 
 [compat]
 Documenter = "1"
+LiveServer = "1"

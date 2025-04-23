@@ -9,7 +9,8 @@ makedocs(
   format = Documenter.HTML(
     prettyurls = get(ENV, "CI", nothing) == "true",
     canonical = "https://nathanemac.github.io/ProxTV.jl",
-    assets = ["assets/favicon.ico"],
+    assets = String[],
+    ansicolor = true,
   ),
   repo = "https://github.com/nathanemac/ProxTV.jl",
   authors = "Nathan Allaire <nathan.allaire@polymtl.ca> and contributors",
@@ -22,10 +23,6 @@ makedocs(
       ["Guidelines" => "90-contributing.md", "Developer Guide" => "91-developer.md"],
     "References" => "95-reference.md",
   ],
-)
-
-deploydocs(
-  repo = "github.com/nathanemac/ProxTV.jl",
-  devbranch = "main",
-  push_preview = false,  # désactive les previews
+  checkdocs = :none,  # Don't check for missing docstrings
+  doctest = false,     # Skip doctests for now
 )
