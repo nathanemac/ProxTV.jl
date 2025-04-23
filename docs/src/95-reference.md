@@ -12,25 +12,16 @@ Pages = ["95-reference.md"]
 Pages = ["95-reference.md"]
 ```
 
-## All Package Exports
+## Package Functions
+
+Documentation for the public functions and types exported by ProxTV.jl.
 
 ```@autodocs
 Modules = [ProxTV]
 Order = [:constant, :function, :macro]
-Filter = t -> !(t in [
-    ProxTV.ModelFunction,
-    ProxTV.ProxTVContext,
-    ProxTV.InexactShiftedProximableFunction,
-    ProxTV.NormLp,
-    ProxTV.ShiftedNormLp,
-    ProxTV.NormTVp,
-    ProxTV.ShiftedNormTVp
-]) && !startswith(string(t), "prox!") &&
-       !startswith(string(t), "shifted") &&
-       !startswith(string(t), "shift!")
 ```
 
-## Internal Types and Functions
+## Internal Functions
 
 This section contains documentation for internal functions not typically used directly by users.
 

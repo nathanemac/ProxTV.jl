@@ -54,12 +54,19 @@ Comprehensive documentation and more examples can be found in the [online docume
 
 ## Documentation
 
-The documentation includes:
+The documentation for ProxTV.jl is available at [https://nathanemac.github.io/ProxTV.jl/stable](https://nathanemac.github.io/ProxTV.jl/stable).
 
-- Getting Started guide
-- Detailed examples for various use cases
-- Complete API reference
-- Contributing guidelines
+To build the documentation locally:
+
+```bash
+# Build the documentation
+./build_docs.sh
+
+# Or build and serve it locally
+./serve_docs.sh
+```
+
+This will build the documentation and make it available in your browser.
 
 ## Tests
 

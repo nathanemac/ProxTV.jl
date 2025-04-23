@@ -15,6 +15,31 @@ Total Variation regularization is widely used in signal and image processing for
 - Weighted regularization
 - Integration with the ShiftedProximalOperators.jl package
 
+## Installation
+
+```julia
+using Pkg
+Pkg.add("ProxTV")
+```
+
+## Quick Example
+
+```julia
+using ProxTV
+
+# Generate a noisy signal
+n = 100
+true_signal = vcat(zeros(30), ones(40), zeros(30))
+noisy_signal = true_signal + 0.2 * randn(n)
+
+# Denoise using TV-L1
+lambda = 1.0
+denoised = zeros(n)
+ProxTV.TV(noisy_signal, lambda, denoised, 1.0)
+
+# denoised now contains the TV-L1 regularized signal
+```
+
 ## Documentation
 
 - [Getting Started](00-getting-started.md) - Installation and basic usage
