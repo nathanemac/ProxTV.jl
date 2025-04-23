@@ -40,7 +40,6 @@ jobs:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
 
   docs:
-    if: github.event_name == 'push' # ❗ Ne déploie QUE sur push (évite les erreurs sur PR)
     runs-on: ubuntu-latest
     permissions:
       contents: write

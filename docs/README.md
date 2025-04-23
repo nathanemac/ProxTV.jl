@@ -37,7 +37,7 @@ This will install dependencies, build the documentation, and open it in your def
 ./serve_docs.sh
 ```
 
-This will build the documentation and start a local web server at <http://localhost:8000> where you can view it. The documentation will update automatically when you make changes to the source files.
+This will build the documentation and start a local web server at localhost:8000 where you can view it. The documentation will update automatically when you make changes to the source files.
 
 ### Option 3: Manual build
 
