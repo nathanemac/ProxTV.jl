@@ -26,9 +26,3 @@ makedocs(
   checkdocs = :none,  # Don't check for missing docstrings
   doctest = false,     # Skip doctests for now
 )
-
-deploydocs(
-  repo = "github.com/nathanemac/ProxTV.jl",
-  devbranch = "fix-docs",
-  push_preview = true,
-)
