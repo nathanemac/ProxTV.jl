@@ -819,6 +819,56 @@ function (ψ::ShiftedNormTVp)(y::AbstractVector)
 end
 
 """
+    prox!(y::AbstractArray, h::NormTVp, q::AbstractArray, ν::Real)
+
+Evaluates the proximity operator of a TV norm.
+
+# Arguments
+- `y`: Array in which to store the result
+- `h`: NormTVp object
+- `q`: Vector to which the proximity operator is applied
+- `ν`: Scaling factor
+
+# Note
+Uses the context from `h` for computations.
+"""
+function prox!(y::AbstractArray, h::NormTVp, q::AbstractArray, ν::Real)
+  n = length(y)
+
+  # Workspace temporaire
+  ws = newWorkspace(n)
+  ws === nothing && error("Failed to allocate workspace")
+
+  try
+    info = h.context.info
+
+    # λ mis à l’échelle par ν
+    λ_scaled = h.λ * ν
+
+    # Appel à l’opérateur TVp de ProxTV
+    TV(
+      q,              # entrée
+      λ_scaled,       # pénalité
+      y,              # sortie (in-place)
+      info,
+      n,
+      h.p,            # paramètre p de la TVp
+      ws,
+      h.context,
+      h.context.callback_pointer,
+    )
+
+    # Statistiques : ajout des itérations effectuées
+    h.context.prox_stats[3] += Int64(info[1])
+
+    return y
+  finally
+    freeWorkspace(ws)
+  end
+end
+
+
+"""
     prox!(y, ψ::ShiftedNormTVp, q, ν)
 
 Evaluates the proximity operator of a shifted TV norm.
