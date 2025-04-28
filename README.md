@@ -35,12 +35,14 @@ Here is an example of how to use ProxTV.jl to compute the proximal operator of t
 using ProxTV
 
 n = 1000
-true_signal = sin.(2π * (1:n) / n)
+x = range(0, 2π; length=n)  # abscisse de 0 à 2π
+true_signal = sin.(x)
 noisy_signal = true_signal + 0.1 * randn(n)
 recovered_signal = similar(noisy_signal) # output buffer
 
 h = NormTVp(1.0, 1.0, n)
 prox!(recovered_signal, h, noisy_signal, 1.0)
+
 ```
 
 ![Result](src/assets/simple_example_plot.png)
