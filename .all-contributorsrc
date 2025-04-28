@@ -1,5 +1,8 @@
 {
   "projectName": "ProxTV",
   "projectOwner": "nathanemac",
-  "files": ["README.md", "docs/src/index.md"]
+  "files": [
+    "README.md",
+    "docs/src/index.md"
+  ]
 }
