@@ -35,7 +35,7 @@ Here is an example of how to use ProxTV.jl to compute the proximal operator of t
 using ProxTV
 
 n = 1000
-x = range(0, 2π; length=n)  # abscisse de 0 à 2π
+x = range(0, 2π; length=n)
 true_signal = sin.(x)
 noisy_signal = true_signal + 0.1 * randn(n)
 recovered_signal = similar(noisy_signal) # output buffer
@@ -51,32 +51,19 @@ Comprehensive documentation and more examples can be found in the [online docume
 
 ## Features
 
-- Fast computation of Total Variation proximal operators
-- Support for 1D and 2D signals
-- Support for any p-norm (L1, L2, and custom p-norms)
+- Fast computation of Lp-norm and Total Variation proximal operators
+- Support for 1D, 2D, and nD signals
+- Support for any p-norm (L1, L2, and custom p-norms) with p ≥ 1
 - Weighted regularization
-- Integration with ShiftedProximalOperators.jl
-
-To build the documentation locally:
-
-```bash
-# Build the documentation
-./build_docs.sh
-
-# Or build and serve it locally
-./serve_docs.sh
-```
-
-This will build the documentation and make it available in your browser.
+- many variants (`libproxtv.jl`)
+- **Integration with [ShiftedProximalOperators.jl](https://github.com/JuliaSmoothOptimizers/ShiftedProximalOperators.jl) for [RegularizedOptimization.jl](https://github.com/JuliaSmoothOptimizers/RegularizedOptimization.jl)**
 
 ## Tests
 
 ProxTV.jl includes comprehensive tests for:
 
-- Core TV functions
+- Core Lp-norm and TV functions
 - Integration with ShiftedProximalOperators
-- Different p-norms
-- Different signal dimensions
 
 ## How to Cite
 
@@ -88,13 +75,4 @@ If you want to make contributions of any kind, please first that a look into our
 
 ---
 
-### Contributors
-
-<!-- ALL-CONTRIBUTORS-LIST:START - Do not remove or modify this section -->
-<!-- prettier-ignore-start -->
-<!-- markdownlint-disable -->
-
-<!-- markdownlint-restore -->
-<!-- prettier-ignore-end -->
-
-<!-- ALL-CONTRIBUTORS-LIST:END -->
+## Contributors

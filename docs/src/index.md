@@ -4,40 +4,23 @@ CurrentModule = ProxTV
 
 # ProxTV.jl
 
-ProxTV.jl is a Julia package that provides efficient implementations of proximal operators for total variation (TV) regularization with various p-norms.
+`ProxTV.jl` is a Julia package that provides efficient implementations of proximal operators for total variation (TV)_p regularization and p-norms.
+It is designed to be used in conjunction with [ShiftedProximalOperators.jl](https://github.com/JuliaSmoothOptimizers/ShiftedProximalOperators.jl) for use in [RegularizedOptimization.jl](https://github.com/JuliaSmoothOptimizers/RegularizedOptimization.jl).
 
 ## Overview
 
 Total Variation regularization is widely used in signal and image processing for denoising, smoothing, and feature detection while preserving sharp transitions. This package offers:
 
-- Efficient computation of TV proximal operators for 1D and 2D signals
+- Efficient computation of TV proximal operators for 1D, 2D, and nD signals
 - Support for different p-norms (L1, L2, and custom p-norms)
 - Weighted regularization
-- Integration with the ShiftedProximalOperators.jl package
+- Integration with the [ShiftedProximalOperators.jl](https://github.com/JuliaSmoothOptimizers/ShiftedProximalOperators.jl) package
 
 ## Installation
 
 ```julia
 using Pkg
 Pkg.add("ProxTV")
-```
-
-## Quick Example
-
-```julia
-using ProxTV
-
-# Generate a noisy signal
-n = 100
-true_signal = vcat(zeros(30), ones(40), zeros(30))
-noisy_signal = true_signal + 0.2 * randn(n)
-
-# Denoise using TV-L1
-lambda = 1.0
-denoised = zeros(n)
-ProxTV.TV(noisy_signal, lambda, denoised, 1.0)
-
-# denoised now contains the TV-L1 regularized signal
 ```
 
 ## Documentation
@@ -50,7 +33,7 @@ ProxTV.TV(noisy_signal, lambda, denoised, 1.0)
 
 ## Package Features
 
-- **Efficient Implementation**: Based on algorithms from the original ProxTV package
+- **Efficient Implementation**: Based on algorithms from the original [ProxTV](https://github.com/albarji/proxTV) package
 - **Versatile Interface**: Support for different norms and problem dimensions
 - **Julia Integration**: Designed to work well with Julia's type system and other packages
 
