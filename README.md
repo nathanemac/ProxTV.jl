@@ -34,13 +34,16 @@ Here is an example of how to use ProxTV.jl to compute the proximal operator of t
 ```julia
 using ProxTV
 
-n = rand(10:100)
-lambda = 0.15
-y = rand(n)
-x = zeros(n)
-p = 1.32 # inexact prox computation : no closed-form for p = 1.32
-ProxTV.TV(y, lambda, x, p)
+n = 1000
+true_signal = sin.(2π * (1:n) / n)
+noisy_signal = true_signal + 0.1 * randn(n)
+recovered_signal = similar(noisy_signal) # output buffer
+
+h = NormTVp(1.0, 1.0, n)
+prox!(recovered_signal, h, noisy_signal, 1.0)
 ```
+
+![Result](src/assets/simple_example_plot.png)
 
 Comprehensive documentation and more examples can be found in the [online documentation](https://nathanemac.github.io/ProxTV.jl).
 
