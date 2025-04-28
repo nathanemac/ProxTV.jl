@@ -1,7 +1,6 @@
 module ProxTV
 
 using OpenBLAS32_jll
-using LAPACK_jll
 using LinearAlgebra
 using ShiftedProximalOperators
 
