@@ -7,33 +7,10 @@ using proxTV_jll
   return LPnorm(x, n, p)
 end
 
-"""
-    LPnorm(x, n, p)
-
-Compute the Lp-norm of a vector with p ∈ [1, ∞].
-
-# Arguments
-- `x`: The vector to compute the Lp-norm of
-- `n`: The length of the vector
-- `p`: The p-norm value (default is 1.0 for L1 norm)
-"""
 @inline function LPnorm(x, n, p)
   @ccall libproxtv.LPnorm(x::Ptr{Float64}, n::Int32, p::Float64)::Float64
 end
 
-
-"""
-    PN_LP1(y, lambda, x, info, n)
-
-Compute the proximal operator of the L1-norm.
-
-# Arguments
-- `y`: The input vector
-- `lambda`: The regularization parameter
-- `x`: The output vector
-- `info`: An array to store information about the execution of the function
-- `n`: The length of the vector
-"""
 function PN_LP1(y, lambda, x, info, n)
   @ccall libproxtv.PN_LP1(
     y::Ptr{Float64},
@@ -44,18 +21,6 @@ function PN_LP1(y, lambda, x, info, n)
   )::Int32
 end
 
-"""
-    PN_LP2(y, lambda, x, info, n)
-
-Compute the proximal operator of the L2-norm.
-
-# Arguments
-- `y`: The input vector
-- `lambda`: The regularization parameter
-- `x`: The output vector
-- `info`: An array to store information about the execution of the function
-- `n`: The length of the vector
-"""
 function PN_LP2(y, lambda, x, info, n)
   @ccall libproxtv.PN_LP2(
     y::Ptr{Float64},
@@ -66,11 +31,6 @@ function PN_LP2(y, lambda, x, info, n)
   )::Int32
 end
 
-"""
-    Workspace
-
-A struct to manage the workspace for the proximal operator functions.
-"""
 struct Workspace
   n::Int32
   d::Ptr{Ptr{Float64}}
@@ -86,19 +46,6 @@ struct Workspace
   warmLambda::Float64
 end
 
-"""
-    PN_LPinf(y, lambda, x, info, n, ws)
-
-Compute the proximal operator of the L∞-norm.
-
-# Arguments
-- `y`: The input vector
-- `lambda`: The regularization parameter
-- `x`: The output vector
-- `info`: An array to store information about the execution of the function
-- `n`: The length of the vector
-- `ws`: The workspace (see [`Workspace`](@ref))
-"""
 function PN_LPinf(y, lambda, x, info, n, ws)
   @ccall libproxtv.PN_LPinf(
     y::Ptr{Float64},
@@ -110,23 +57,7 @@ function PN_LPinf(y, lambda, x, info, n, ws)
   )::Int32
 end
 
-"""
-    PN_LPp(y, lambda, x, info, n, p, ws, positive, ctx, callback)
-
-Compute the proximal operator of the Lp-norm.
-
-# Arguments
-- `y`: The input vector
-- `lambda`: The regularization parameter
-- `x`: The output vector
-- `info`: An array to store information about the execution of the function
-- `n`: The length of the vector
-- `p`: The p-norm value (default is 1.0 for L1 norm)
-- `ws`: The workspace (see [`Workspace`](@ref))
-- `positive`: A flag to indicate if the input vector is positive
-- `ctx`: The context (see [`ProxTVContext`](@ref))
-- `callback`: A specific callback function to be called when the function is finished (see [`default_proxTV_callback_Lp`](@ref) and [`default_proxTV_callback_TVp`](@ref))
-"""
+# original PN_LPp function
 function PN_LPp(y, lambda, x, info, n, p, ws, positive, ctx, callback)
   objGap = ctx.dualGap
   ctx_ptr = Ptr{Cvoid}(pointer_from_objref(ctx))
@@ -214,17 +145,6 @@ end
 
 Compute the proximal operator of the Total Variation (TV) regularization with any p-norm on a 1D signal, designed for internal use with InexactShiftedProximableFunction.
 
-# Arguments
-- `y`: The input vector
-- `lambda`: The regularization parameter
-- `x`: The output vector
-- `info`: An array to store information about the execution of the function
-- `n`: The length of the vector
-- `p`: The p-norm value (default is 1.0 for L1 norm)
-- `ws`: The workspace (see [`Workspace`](@ref))
-- `ctx`: The context (see [`ProxTVContext`](@ref))
-- `callback`: A specific callback function to be called when the function is finished (see [`default_proxTV_callback_Lp`](@ref) and [`default_proxTV_callback_TVp`](@ref))
-
 # Returns
 1 if the function was successful, 0 otherwise.
 """
@@ -245,6 +165,49 @@ function TV(y, lambda, x, info, n, p, ws, ctx, callback)
   )::Int32
 end
 
+"""
+    TV(y, lambda, x, p=1.0)
+
+Compute the proximal operator of the Total Variation (TV) regularization with any p-norm on a 1D signal.
+
+This function computes the solution to the following optimization problem:
+```math
+\\min_x \\frac{1}{2}\\|x-y\\|_2^2 + \\lambda\\sum_{i=1}^{n-1} |x_{i+1} - x_i|^p
+```
+
+# Arguments
+- `y`: Input signal to denoise
+- `lambda`: Regularization parameter (higher values give more smoothing)
+- `x`: Pre-allocated output buffer to store the result
+- `p`: The p-norm value (default is 1.0 for L1 norm)
+
+# Returns
+Nothing, the result is stored in-place in the `x` parameter.
+
+# Examples
+```julia
+using ProxTV
+
+# Generate random signal
+n = 100
+y = cumsum(randn(n)) # Random walk signal
+lambda = 2.0 # Regularization parameter
+x = zeros(n) # Output buffer
+
+# Compute proximal operator of TV-L1 norm
+ProxTV.TV(y, lambda, x, 1.0)
+
+# For L2 norm (quadratic variation)
+x2 = zeros(n)
+ProxTV.TV(y, lambda, x2, 2.0)
+
+# For custom p-norm
+x3 = zeros(n)
+ProxTV.TV(y, lambda, x3, 1.5)
+```
+
+See also: [`TVp_norm`](@ref)
+"""
 function TV(y, lambda, x, p = 1.0)
   n = length(y)                  # works for nD signals
   info = zeros(Float64, 3)       # stores the information about the execution of the function
@@ -635,26 +598,10 @@ function radialProjection(x, n, norm, lambda)
   )::Cvoid
 end
 
-"""
-    newWorkspace(n)
-
-Create a new workspace (see [`Workspace`](@ref)).
-
-# Arguments
-- `n`: The length of the vector
-"""
 function newWorkspace(n)
   @ccall libproxtv.newWorkspace(n::Int32)::Ptr{Workspace}
 end
 
-"""
-    resetWorkspace(ws)
-
-Reset the workspace (see [`Workspace`](@ref)).
-
-# Arguments
-- `ws`: workspace to reset
-"""
 function resetWorkspace(ws)
   @ccall libproxtv.resetWorkspace(ws::Ptr{Workspace})::Cvoid
 end
@@ -667,14 +614,6 @@ function getIntWorkspace(ws)
   @ccall libproxtv.getIntWorkspace(ws::Ptr{Workspace})::Ptr{Int32}
 end
 
-"""
-    freeWorkspace(ws)
-
-Free the workspace (see [`Workspace`](@ref)).
-
-# Arguments
-- `ws`: workspace to free
-"""
 function freeWorkspace(ws)
   @ccall libproxtv.freeWorkspace(ws::Ptr{Workspace})::Cvoid
 end

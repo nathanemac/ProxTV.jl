@@ -172,7 +172,7 @@ end
 
 ## Structure for callback function in iR2/iR2N
 """
-    ProxTVContext
+    ProxTVContext{F}
 
 Structure for managing the context of ProxTV operations, including memory allocations
 and algorithm parameters.
@@ -330,7 +330,7 @@ Structure representing the Lp norm with parameter p and scaling factor λ.
 
 # Note
 This is not the most efficient way to define the Lp norm.
-Instead, see `NormLp(λ::T1, p::T2, n::Int)` to avoid defining the context.
+Instead, see [`NormLp(λ::T1, p::T2, n::Int)`](@ref) to avoid defining the context.
 """
 mutable struct NormLp{T1,T2,C}
   λ::T1

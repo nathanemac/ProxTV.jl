@@ -4,8 +4,7 @@ CurrentModule = ProxTV
 
 # ProxTV.jl
 
-`ProxTV.jl` is a Julia package that provides efficient implementations of proximal operators for total variation (TV)_p regularization and p-norms.
-It is designed to be used in conjunction with [ShiftedProximalOperators.jl](https://github.com/JuliaSmoothOptimizers/ShiftedProximalOperators.jl) for use in [RegularizedOptimization.jl](https://github.com/JuliaSmoothOptimizers/RegularizedOptimization.jl).
+ProxTV.jl is a Julia package that provides efficient implementations of proximal operators for total variation (TV) regularization with various p-norms.
 
 ## Overview
 
