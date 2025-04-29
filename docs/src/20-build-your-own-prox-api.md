@@ -151,4 +151,4 @@ RegularizedOptimization.solve!(
 
 If you want to contribute to `ProxTV.jl` or `ShiftedProximalOperators.jl` with your fresh new proximal operator, feel free to open a PR!
 
-If you have any question, feel free to open an issue on the [Github repository](https://github.com/JuliaSmoothOptimizers/ProxTV.jl) or to contact [Nathan Allaire](mailto:nathan.allaire@polymtl.ca).
+If you have any question, feel free to open an issue on the [Github repository](https://github.com/nathanemac/ProxTV.jl) or to contact [Nathan Allaire](mailto:nathan.allaire@polymtl.ca).
