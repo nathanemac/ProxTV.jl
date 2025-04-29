@@ -27,7 +27,7 @@ Pkg.add("ProxTV")
 
 - [Getting Started](00-getting-started.md) - Installation and basic usage
 - [Examples](10-examples.md) - Practical examples demonstrating different use cases
-- [API Reference](20-api-reference.md) - Complete reference of functions and types
+- [Build your own prox API](20-build-your-own-prox-api.md) - Use your own proximal operator in `RegularizedOptimization.jl`
 - [Contributing](90-contributing.md) - Guidelines for contributing to the project
 - [Developer Guide](91-developer.md) - Technical information for developers
 

@@ -55,7 +55,7 @@ Comprehensive documentation and more examples can be found in the [online docume
 - Support for 1D, 2D, and nD signals
 - Support for any p-norm (L1, L2, and custom p-norms) with p ≥ 1
 - Weighted regularization
-- many variants (`libproxtv.jl`)
+- many variants (see `src/libproxtv.jl`)
 - **Integration with [ShiftedProximalOperators.jl](https://github.com/JuliaSmoothOptimizers/ShiftedProximalOperators.jl) for [RegularizedOptimization.jl](https://github.com/JuliaSmoothOptimizers/RegularizedOptimization.jl)**
 
 ## Tests
@@ -64,6 +64,10 @@ ProxTV.jl includes comprehensive tests for:
 
 - Core Lp-norm and TV functions
 - Integration with ShiftedProximalOperators
+
+## Build your prox API
+
+If you want to integrate your proximal operator in `RegularizedOptimization.jl`, see [Build your own prox API](docs/src/20-build-your-own-prox-api.md).
 
 ## How to Cite
 
