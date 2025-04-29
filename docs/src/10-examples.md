@@ -8,6 +8,9 @@ This page contains examples of how to use the `ProxTV.jl` package for various to
 
 ## Exact proximal operators
 
+Below is an example of how to compute the exact proximal operators of the L1, L2, and L-infinity norms.
+Note that similar functions exist for the TV norms (see [References](95-reference.md)).
+
 ```julia
 
 n = 100
@@ -25,11 +28,16 @@ ProxTV.PN_LP2(y, λ, x2, info, n) # L2 norm
 ProxTV.PN_LPinf(y, λ, xinf, info, n, ws) # L-inf norm
 ```
 
+The result is stored in `x1`, `x2`, and `xinf` respectively.
+
 ## Inexact proximal operators
+
+The inexact counterpart of the exact p-norms is given by the `PN_LPp` function.
+Here again, similar functions exist for the TV norms.
 
 ```julia
 x = zeros(n)
-p = 1.6 # Custom p-value (can be anything between 1 and Inf)
+p = 1.6 # Custom p-value (can be anything between 1 and infinity)
 objGap = 1e-8 # Primal-dual gap (stopping criterion)
 
 # Compute proximal operator with custom p-norm
@@ -38,10 +46,10 @@ ProxTV.PN_LPp(y, λ, x, p, objGap)
 
 ## Integration with `ShiftedProximalOperators.jl`
 
-### Norm objects
-
 `ProxTV.jl` follows the design of `ShiftedProximalOperators.jl`.
 You can notably define a `Norm` object, `shift` it, call it as a function, evaluate its proximal operator, etc.
+
+### Norm objects
 
 ```julia
 n = 100
@@ -65,6 +73,8 @@ It is automatically managed and updated by `ProxTV.jl` and does not need to be m
 
 ### Shifted norm objects
 
+The `shifted` function returns a `ShiftedNorm` object, a subtype of `InexactShiftedProximableFunction` that extends `ShiftedProximableFunction` from `ShiftedProximalOperators.jl`.
+
 ```julia
 shift = ones(n)
 
@@ -81,8 +91,6 @@ shift!(ψ_lp, second_shift)
 shift!(ψ_tvp, second_shift)
 # Now, calling ψ_lp and ψ_tvp evaluates the Lp-norm and TVp-norm of x + second_shift, times λ.
 ```
-
-The `shifted` function returns a `ShiftedNorm` object, a subtype of `InexactShiftedProximableFunction`, that extends `ShiftedProximableFunction` from `ShiftedProximalOperators.jl` .
 
 ### Proximal operator
 

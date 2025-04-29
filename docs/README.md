@@ -14,7 +14,7 @@ This directory contains the documentation for the ProxTV.jl package.
 - `index.md` - The home page with package overview
 - `00-getting-started.md` - Installation and basic usage
 - `10-examples.md` - Examples of using the package
-- `20-api-reference.md` - API reference (manual documentation of functions)
+- `20-build-your-own-prox-api.md` - Build your own prox API to integrate in `RegularizedOptimization.jl`
 - `90-contributing.md` - Contributing guidelines
 - `91-developer.md` - Developer guide
 - `95-reference.md` - API reference (automatically generated from docstrings)
