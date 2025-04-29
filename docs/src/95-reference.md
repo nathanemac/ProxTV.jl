@@ -19,6 +19,7 @@ Documentation for the public functions and types exported by ProxTV.jl.
 ```@autodocs
 Modules = [ProxTV]
 Order = [:constant, :function, :macro]
+Public = true
 ```
 
 ## Internal Functions
@@ -27,5 +28,6 @@ This section contains documentation for internal functions not typically used di
 
 ```@autodocs
 Modules = [ProxTV]
+Order = [:constant, :function, :macro]
 Public = false
 ```

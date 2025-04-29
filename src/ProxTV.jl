@@ -18,6 +18,7 @@ import ShiftedProximalOperators.prox!
 
 # export our new functions
 export ProxTVContext
+export Workspace
 export InexactShiftedProximableFunction
 export NormLp, ShiftedNormLp, NormTVp, ShiftedNormTVp
 export prox!, shifted, shift!, TV, TVp_norm
