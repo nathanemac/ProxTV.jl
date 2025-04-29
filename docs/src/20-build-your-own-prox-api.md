@@ -4,7 +4,7 @@ CurrentModule = ProxTV
 
 # Build your own prox API
 
-!!! warning "This page is under construction, and should be used when `iR2N` and `iR2` will be merged into `RegularizedOptimization.jl`".
+!!! note "This page is under construction, and should be used when `iR2N` and `iR2` will be merged into `RegularizedOptimization.jl`".
 
 ## Motivation
 

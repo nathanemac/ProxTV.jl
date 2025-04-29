@@ -21,11 +21,11 @@ Modules = [ProxTV]
 Order = [:constant, :function, :macro]
 ```
 
-## Internal Functions
+<!-- ## Internal Functions
 
 This section contains documentation for internal functions not typically used directly by users.
 
 ```@autodocs
 Modules = [ProxTV]
 Public = false
-```
+``` -->
