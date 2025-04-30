@@ -17,7 +17,7 @@ makedocs(
     "Home" => "index.md",
     "Getting Started" => "00-getting-started.md",
     "Examples" => "10-examples.md",
-    "API Reference" => "20-api-reference.md",
+    "Build your own prox API" => "20-build-your-own-proximal-operator.md",
     "Contributing" =>
       ["Guidelines" => "90-contributing.md", "Developer Guide" => "91-developer.md"],
     "References" => "95-reference.md",
