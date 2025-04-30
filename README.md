@@ -45,7 +45,9 @@ prox!(recovered_signal, h, noisy_signal, 1.0)
 
 ```
 
-![Result](src/assets/simple_example_plot.png)
+<p align="center">
+  <img src="src/assets/simple_example_plot.png" alt="Result" />
+</p>
 
 Comprehensive documentation and more examples can be found in the [online documentation](https://nathanemac.github.io/ProxTV.jl).
 
