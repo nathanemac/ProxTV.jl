@@ -22,6 +22,15 @@ Order = [:constant, :function, :macro]
 Public = true
 ```
 
+```@docs
+ProxTV.NormLp
+ProxTV.ShiftedNormLp
+ProxTV.NormTVp
+ProxTV.ShiftedNormTVp
+ProxTV.InexactShiftedProximableFunction
+ProxTV.ProxTVContext
+```
+
 ## Internal Functions
 
 This section contains documentation for internal functions not typically used directly by users.
