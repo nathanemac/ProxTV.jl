@@ -17,10 +17,10 @@ Assume you want to solve a regularized optimization problem of the form:
 
 where `f` is smooth and `h` is possibly non-smooth.
 
-Methods such as [R2N](https://github.com/JuliaSmoothOptimizers/RegularizedOptimization.jl/blob/master/src/R2N.jl) or [R2](https://github.com/JuliaSmoothOptimizers/RegularizedOptimization.jl/blob/master/src/R2_alg.jl) and their inexact variants `iR2N` and `iR2` solve this problem by iteratively minimizing a model of the form:
+Methods such as [R2N](https://github.com/JuliaSmoothOptimizers/RegularizedOptimization.jl/blob/master/src/R2N.jl) or [R2](https://github.com/JuliaSmoothOptimizers/RegularizedOptimization.jl/blob/master/src/R2_alg.jl) and their inexact variants `iR2N` and `iR2` solve this problem by iteratively computing an element from:
 
 ```math
-\min_s \frac{1}{2}\nu^{-1}\|s + \nu \nabla f(x_k) - \|_2^2 + \psi(s),
+\argmin_s \frac{1}{2}\nu^{-1}\|s + \nu \nabla f(x_k) \|_2^2 + \psi(s),
 ```
 
 which is $\textrm{prox}_{\nu \psi}(-\nu \nabla f(x_k))$.
@@ -57,8 +57,8 @@ mutable struct ProxTVContext{F}
 end
 ```
 
-You might need a totally different structure, but the idea is that it contains all the information you need along the iterations to compute the proximal operator.
-You might even not need a context at all, and compute the proximal operator directly in the `prox!` function (which is the case for most operators in [ShiftedProximalOperators.jl](https://github.com/JuliaSmoothOptimizers/ShiftedProximalOperators.jl/tree/master/src)).
+You may need a totally different structure, but the idea is that it contains all the information you need along the iterations to compute the proximal operator.
+You might even not need a context at all, and compute the proximal operator directly in the `prox!` function — which is the case for most operators in [ShiftedProximalOperators.jl](https://github.com/JuliaSmoothOptimizers/ShiftedProximalOperators.jl/tree/master/src).
 
 !!! note "Allocation-free"
     Note that `ProxTV.jl` is memory allocation free, essentially thanks to the `Context` structure.
