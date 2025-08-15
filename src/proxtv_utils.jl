@@ -52,7 +52,8 @@ function default_proxTV_callback_TVp(
   @. context.s_k_unshifted = context.s_k - context.shift
   n = Int(s_length)
 
-  ψ_val::Float64 = TVp_norm(context.s_k, n, context.p)
+  λ = context.λ::Float64
+  ψ_val::Float64 = λ * TVp_norm(context.s_k, n, context.p)
   ϕ_val::Float64 = dot(context.∇fk, context.s_k_unshifted)
   mks = ϕ_val + ψ_val
 
@@ -105,11 +106,13 @@ function default_proxTV_callback_Lp(
   @. context.s_k_unshifted = context.s_k - context.shift
   n = Int(s_length)
 
-  ψ_val::Float64 = LPnorm(context.s_k, n, context.p::Float64)
+  λ = context.λ::Float64
+  ψ_val::Float64 = λ * LPnorm(context.s_k, n, context.p::Float64)
   ϕ_val::Float64 = dot(context.∇fk, context.s_k_unshifted)
   mks = ϕ_val + ψ_val
 
   hk = context.hk::Float64
+
   κξ = context.κξ::Float64
   ξk::Float64 = hk - mks
   ratio::Float64 = (1.0 - κξ) / κξ
@@ -183,6 +186,7 @@ and algorithm parameters.
 - `∇fk::Vector{Float64}`: gradient of the function at the current point
 - `h_fun::F`: function handle for h
 - `p::Real`: parameter of the norm
+- `λ::Real`: regularization parameter
 - `κξ::Float64`: control parameter for the stopping criterion
 - `shift::Vector{Float64}`: shift vector
 - `s_k_unshifted::Vector{Float64}`: current unshifted solution
@@ -201,6 +205,7 @@ mutable struct ProxTVContext{F}
   ∇fk::Vector{Float64}
   h_fun::F
   p::Real
+  λ::Real
   κξ::Float64
   shift::Vector{Float64}
   s_k_unshifted::Vector{Float64}
@@ -219,6 +224,7 @@ mutable struct ProxTVContext{F}
     ∇fk::Vector{Float64},
     h_fun::F,
     p::Real,
+    λ::Real,
     κξ::Float64,
     shift::Vector{Float64},
     s_k_unshifted::Vector{Float64},
@@ -237,6 +243,7 @@ mutable struct ProxTVContext{F}
       ∇fk,
       h_fun,
       p,
+      λ::Real,
       κξ,
       shift,
       s_k_unshifted,
@@ -253,7 +260,7 @@ mutable struct ProxTVContext{F}
   end
 end
 
-function ProxTVContext(n::Int, h_symb::Symbol, p::Real; κξ = 0.75, dualGap = 0.0)
+function ProxTVContext(n::Int, h_symb::Symbol, p::Real; κξ = 0.75, λ = 1e-1, dualGap = 0.0)
   n <= 0 && throw(ArgumentError("number of variables must be positive"))
   (κξ <= 1 / 2 || κξ >= 1) && throw(ArgumentError("κξ must be strictly between 1/2 and 1"))
   dualGap < 0 && throw(ArgumentError("dualGap must be nonnegative"))
@@ -296,6 +303,7 @@ function ProxTVContext(n::Int, h_symb::Symbol, p::Real; κξ = 0.75, dualGap = 0
     ∇fk,
     h_fun,
     p,
+    λ,
     κξ,
     shift,
     s_k_unshifted,
